@@ -82,19 +82,24 @@ export default function GroupDetailPage() {
     );
   }
 
-  const utilization = (group.usedMinutes / group.totalMinutes) * 100;
+  const totalPercent = forecast.currentUtilization * 100;
+  const todayPercent = forecast.todayUtilization * 100;
   const startDate = new Date(group.startDate);
   const endDate = new Date(group.endDate);
-  const daysRemaining = Math.ceil((endDate.getTime() - new Date('2026-03-29').getTime()) / (1000 * 60 * 60 * 24));
+  const daysRemaining = forecast.daysRemaining;
 
-  let utilizationColor = 'text-green-600';
-  let utilizationBgColor = 'bg-green-50';
-  if (utilization < 60) {
-    utilizationColor = 'text-red-600';
-    utilizationBgColor = 'bg-red-50';
-  } else if (utilization < 80) {
-    utilizationColor = 'text-yellow-600';
-    utilizationBgColor = 'bg-yellow-50';
+  // Kolory bazują na "% na dziś"
+  let todayColor = 'text-green-600';
+  let todayBgColor = 'bg-green-50';
+  if (todayPercent < 40) {
+    todayColor = 'text-red-600';
+    todayBgColor = 'bg-red-50';
+  } else if (todayPercent < 60) {
+    todayColor = 'text-orange-600';
+    todayBgColor = 'bg-orange-50';
+  } else if (todayPercent < 80) {
+    todayColor = 'text-yellow-600';
+    todayBgColor = 'bg-yellow-50';
   }
 
   return (
@@ -116,31 +121,41 @@ export default function GroupDetailPage() {
         </div>
 
         {/* Main stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className={`${utilizationBgColor} border border-gray-200 rounded-lg p-6 shadow-sm`}>
-            <p className="text-gray-600 text-sm font-medium mb-2">Wykorzystanie</p>
-            <p className={`${utilizationColor} text-4xl font-bold`}>
-              {utilization.toFixed(1)}%
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className={`${todayBgColor} border border-gray-200 rounded-lg p-6 shadow-sm`}>
+            <p className="text-gray-600 text-sm font-medium mb-2">Wykorzystanie na dziś</p>
+            <p className={`${todayColor} text-4xl font-bold`}>
+              {todayPercent.toFixed(0)}%
             </p>
             <p className="text-sm text-gray-600 mt-2">
-              {group.usedMinutes.toLocaleString()} / {group.totalMinutes.toLocaleString()} minut
+              vs oczekiwane tempo
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-gray-200 rounded-lg p-6 shadow-sm">
+            <p className="text-gray-600 text-sm font-medium mb-2">Wykorzystanie całości</p>
+            <p className="text-blue-600 text-4xl font-bold">
+              {totalPercent.toFixed(1)}%
+            </p>
+            <p className="text-sm text-gray-600 mt-2">
+              {group.usedMinutes.toLocaleString()} / {group.totalMinutes.toLocaleString()} min
             </p>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-            <p className="text-gray-600 text-sm font-medium mb-2">Oczekiwane wykorzystanie</p>
-            <p className="text-green-600 text-4xl font-bold">
+            <p className="text-gray-600 text-sm font-medium mb-2">Oczekiwane na dziś</p>
+            <p className="text-gray-700 text-4xl font-bold">
               {(forecast.expectedUtilization * 100).toFixed(1)}%
             </p>
             <p className="text-sm text-gray-600 mt-2">
-              Stan na dzień dzisiejszy
+              Liniowo do 75% na koniec
             </p>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             <p className="text-gray-600 text-sm font-medium mb-2">Prognoza na koniec</p>
-            <p className="text-blue-600 text-4xl font-bold">
-              {(forecast.forecastedUtilization * 100).toFixed(1)}%
+            <p className="text-purple-600 text-4xl font-bold">
+              {(forecast.forecastedUtilization * 100).toFixed(0)}%
             </p>
             <p className="text-sm text-gray-600 mt-2">
               Bazując na ostatnich 14 dniach

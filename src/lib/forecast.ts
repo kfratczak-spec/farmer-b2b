@@ -8,9 +8,10 @@ export interface ForecastDataPoint {
 }
 
 export interface ForecastStats {
-  currentUtilization: number;
-  expectedUtilization: number;
-  forecastedUtilization: number;
+  currentUtilization: number;      // % całości (usedMinutes / totalMinutes)
+  todayUtilization: number;        // % na dziś (ile zrobiono vs ile powinno być na dziś)
+  expectedUtilization: number;     // ile % powinno być wykorzystane na dziś (liniowo do 75%)
+  forecastedUtilization: number;   // prognozowane % na koniec okresu
   dailyUsageRate: number;
   daysRemaining: number;
   isOnTrack: boolean;
@@ -52,6 +53,12 @@ export function calculateForecastStats(group: Group): ForecastStats {
   const forecastedUsage = group.usedMinutes + dailyUsageRate * daysRemaining;
   const forecastedUtilization = Math.min(forecastedUsage / group.totalMinutes, 1);
 
+  // % na dziś: ile zrobiono vs ile powinno być na dziś (liniowo do 100%)
+  const expectedMinutesToday = group.totalMinutes * Math.min(Math.max(elapsedRatio, 0), 1);
+  const todayUtilization = expectedMinutesToday > 0
+    ? group.usedMinutes / expectedMinutesToday
+    : 0;
+
   // Check if on track
   const isOnTrack = currentUtilization >= expectedUtilization * 0.95;
 
@@ -60,6 +67,7 @@ export function calculateForecastStats(group: Group): ForecastStats {
 
   return {
     currentUtilization: Math.round(currentUtilization * 100) / 100,
+    todayUtilization: Math.round(todayUtilization * 100) / 100,
     expectedUtilization: Math.round(expectedUtilization * 100) / 100,
     forecastedUtilization: Math.round(forecastedUtilization * 100) / 100,
     dailyUsageRate: Math.round(dailyUsageRate * 100) / 100,
