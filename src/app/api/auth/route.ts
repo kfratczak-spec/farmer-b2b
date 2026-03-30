@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SALESPEOPLE } from '@/lib/data';
+import { getSalespeopleFromData } from '@/lib/data';
 
 const HEAD_OF_SALES = {
   firstName: 'Jan',
@@ -34,8 +34,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Get real salespeople from data
+    const salespeople = getSalespeopleFromData();
+
     // Check if it's a salesperson
-    const salesperson = SALESPEOPLE.find(
+    const salesperson = salespeople.find(
       (sp) => sp.firstName === firstName && sp.lastName === lastName
     );
 

@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+const SAMPLE_SALESPEOPLE = [
+  'Anna Nas',
+  'Róża Donat',
+  'Wanda Lizm',
+  'Piotr Pan',
+  'Antoni Ogórkiewicz',
+];
+
 export default function LoginPage() {
   const router = useRouter();
   const [firstName, setFirstName] = useState('');
@@ -64,7 +72,7 @@ export default function LoginPage() {
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="np. Andrzej"
+              placeholder="np. Anna"
               required
             />
           </div>
@@ -78,7 +86,7 @@ export default function LoginPage() {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="np. Nowak"
+              placeholder="np. Nas"
               required
             />
           </div>
@@ -107,9 +115,11 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-8 p-4 bg-blue-50 rounded-lg text-sm text-gray-700">
-          <p className="font-semibold mb-2">Testowe konta:</p>
-          <p>Sprzedawca: Andrzej Nowak</p>
-          <p>Szef sprzedaży: Jan Administrator</p>
+          <p className="font-semibold mb-2">Przykładowe konta:</p>
+          {SAMPLE_SALESPEOPLE.map((name) => (
+            <p key={name}>{name}</p>
+          ))}
+          <p className="mt-2">Szef sprzedaży: Jan Administrator</p>
           <p className="mt-2 text-gray-600">Hasło: tutlo</p>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GROUPS } from '@/lib/data';
+import { fetchGroups } from '@/lib/data';
 
 export async function GET(
   request: NextRequest,
@@ -7,7 +7,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const group = GROUPS.find((g) => g.id === id);
+    const allGroups = await fetchGroups();
+    const group = allGroups.find((g) => g.id === id);
 
     if (!group) {
       return NextResponse.json(

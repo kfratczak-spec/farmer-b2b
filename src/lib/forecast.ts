@@ -19,7 +19,7 @@ export interface ForecastStats {
 }
 
 export function calculateForecastStats(group: Group): ForecastStats {
-  const now = new Date('2026-03-29');
+  const now = new Date();
   const startDate = new Date(group.startDate);
   const endDate = new Date(group.endDate);
 
@@ -83,7 +83,7 @@ function generateChartDataPoints(
   forecastedUtilization: number
 ): ForecastDataPoint[] {
   const points: ForecastDataPoint[] = [];
-  const now = new Date('2026-03-29');
+  const now = new Date();
   const startDate = new Date(group.startDate);
   const endDate = new Date(group.endDate);
   const totalMs = endDate.getTime() - startDate.getTime();

@@ -1,4 +1,4 @@
-import { GROUPS } from './data';
+import { fetchGroups } from './data';
 
 export type RiskLevel = 'low_risk' | 'high_risk' | 'critical';
 export type TicketStatus = 'open' | 'closed';
@@ -25,7 +25,7 @@ function calculateExpectedUtilization(
   groupEndDate: string,
   targetUtilization: number = 0.75
 ): number {
-  const now = new Date('2026-03-29');
+  const now = new Date();
   const start = new Date(groupStartDate);
   const end = new Date(groupEndDate);
 
@@ -50,9 +50,10 @@ function calculateRiskLevel(
   return 'low_risk';
 }
 
-export function generateTickets(): Ticket[] {
+export async function generateTickets(): Promise<Ticket[]> {
   const tickets: Ticket[] = [];
-  const now = new Date('2026-03-29');
+  const now = new Date();
+  const GROUPS = await fetchGroups();
 
   for (const group of GROUPS) {
     if (!group.isActive) continue;
@@ -110,18 +111,22 @@ export function generateTickets(): Ticket[] {
   return tickets;
 }
 
-export function getTicketById(ticketId: string): Ticket | undefined {
-  return generateTickets().find(t => t.id === ticketId);
+export async function getTicketById(ticketId: string): Promise<Ticket | undefined> {
+  const tickets = await generateTickets();
+  return tickets.find(t => t.id === ticketId);
 }
 
-export function getTicketsByGroupId(groupId: string): Ticket[] {
-  return generateTickets().filter(t => t.groupId === groupId);
+export async function getTicketsByGroupId(groupId: string): Promise<Ticket[]> {
+  const tickets = await generateTickets();
+  return tickets.filter(t => t.groupId === groupId);
 }
 
-export function getOpenTickets(): Ticket[] {
-  return generateTickets().filter(t => t.status === 'open');
+export async function getOpenTickets(): Promise<Ticket[]> {
+  const tickets = await generateTickets();
+  return tickets.filter(t => t.status === 'open');
 }
 
-export function getTicketsBySalesperson(salesPersonId: string): Ticket[] {
-  return generateTickets().filter(t => t.salesPersonId === salesPersonId && t.status === 'open');
+export async function getTicketsBySalesperson(salesPersonId: string): Promise<Ticket[]> {
+  const tickets = await generateTickets();
+  return tickets.filter(t => t.salesPersonId === salesPersonId && t.status === 'open');
 }

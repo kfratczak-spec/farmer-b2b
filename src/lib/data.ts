@@ -8,6 +8,7 @@ export interface Group {
   name: string;
   companyName: string;
   salesPersonId: string;
+  salesPersonName: string;
   totalMinutes: number;
   usedMinutes: number;
   startDate: string;
@@ -28,197 +29,287 @@ export interface Salesperson {
   role: 'salesperson' | 'head_of_sales';
 }
 
-const salespeople: Salesperson[] = [
-  { id: 'sp1', firstName: 'Andrzej', lastName: 'Nowak', role: 'salesperson' },
-  { id: 'sp2', firstName: 'Barbara', lastName: 'Kowalski', role: 'salesperson' },
-  { id: 'sp3', firstName: 'Czesław', lastName: 'Lewandowski', role: 'salesperson' },
-  { id: 'sp4', firstName: 'Danuta', lastName: 'Wójcik', role: 'salesperson' },
-  { id: 'sp5', firstName: 'Ewa', lastName: 'Kamiński', role: 'salesperson' },
-  { id: 'sp6', firstName: 'Franciszek', lastName: 'Szymański', role: 'salesperson' },
-];
+const CSV_URLS = {
+  validgroup: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQh4Z62z-rQvNN_F5nwv3T-5HKu72UvuSPtaxn_NVH5cNgogU3c0TkO3G_85290bBbQ95AQC0Hsh6K9/pub?gid=87092747&single=true&output=csv',
+  talksession: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQh4Z62z-rQvNN_F5nwv3T-5HKu72UvuSPtaxn_NVH5cNgogU3c0TkO3G_85290bBbQ95AQC0Hsh6K9/pub?gid=1064918157&single=true&output=csv',
+};
 
-const companyNames = [
-  'PKO Bank Polski',
-  'PGNiG',
-  'KGHM Polska Miedź',
-  'Orlen',
-  'ZE PAK',
-  'Pekao Bank',
-  'Asseco Poland',
-  'Computer Associates',
-  'Plus Telecommunications',
-  'Play Communications',
-  'mBank',
-  'Millennium Bank',
-  'Deutsche Telekom Poland',
-  'TP Link Poland',
-  'Orange Polska',
-  'Cyfrowy Polsat',
-  'TVP',
-  'PKNORLEN',
-  'Dalkia Polska',
-  'GE Poland',
-  'Unilever Polska',
-  'Nestlé Polska',
-  'PepsiCo Polska',
-  'Colgate-Palmolive',
-  'Procter & Gamble',
-  'Roche Diagnostics',
-  'Johnson & Johnson',
-  'Sanofi Pasteur',
-  'Astrazeneca Poland',
-  'GSK Poland',
-  'Pfizer Polska',
-  'Merck Sharp Dohme',
-  'Novartis Polska',
-  'Eli Lilly',
-  'Toyota Motor',
-  'Volkswagen Poznań',
-  'BMW Poland',
-  'Mercedes-Benz',
-  'Audi Hungaria',
-  'Bosch',
-  'Siemens',
-  'ABB Poland',
-  'Eaton Poland',
-  'Schneider Electric',
-  'Philips Poland',
-  'LG Electronics',
-  'Samsung Poland',
-  'Sony Poland',
-  'Canon',
-  'Xerox',
-  'HP Poland',
-  'Dell Technologies',
-  'Lenovo Poland',
-];
-
-const hrManagers = [
-  { name: 'Maria Schmidt', email: 'm.schmidt@company.pl', phone: '+48 22 123 4567' },
-  { name: 'Piotr Górski', email: 'p.gorski@company.pl', phone: '+48 31 456 7890' },
-  { name: 'Katarzyna Michalska', email: 'k.michalska@company.pl', phone: '+48 12 789 0123' },
-  { name: 'Tomasz Zieliński', email: 't.zielinski@company.pl', phone: '+48 42 345 6789' },
-  { name: 'Joanna Sikora', email: 'j.sikora@company.pl', phone: '+48 58 901 2345' },
-  { name: 'Robert Czarnecki', email: 'r.czarnecki@company.pl', phone: '+48 61 567 8901' },
-  { name: 'Anna Kowal', email: 'a.kowal@company.pl', phone: '+48 71 234 5678' },
-  { name: 'Marcin Filipiak', email: 'm.filipiak@company.pl', phone: '+48 17 890 1234' },
-];
-
-function generateDailyUsage(
-  startDate: Date,
-  endDate: Date,
-  totalMinutes: number,
-  utilizationPattern: 'good' | 'declining' | 'critical' | 'completed'
-): DailyUsage[] {
-  const usage: DailyUsage[] = [];
-  let currentDate = new Date(startDate);
-  const dayCount = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  let accumulatedMinutes = 0;
-
-  while (currentDate < endDate) {
-    let dailyMinutes = 0;
-
-    if (utilizationPattern === 'good') {
-      // Consistent, steady usage - aiming for 80%+ utilization
-      const targetDaily = (totalMinutes * 0.8) / dayCount;
-      dailyMinutes = Math.round(targetDaily * (0.8 + Math.random() * 0.4));
-    } else if (utilizationPattern === 'declining') {
-      // Started well but declined over time
-      const daysElapsed = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-      const declineRatio = Math.max(0.2, 1 - (daysElapsed / dayCount) * 0.7);
-      const targetDaily = (totalMinutes * 0.6) / dayCount;
-      dailyMinutes = Math.round(targetDaily * declineRatio * (0.8 + Math.random() * 0.4));
-    } else if (utilizationPattern === 'critical') {
-      // Very low usage
-      dailyMinutes = Math.round((totalMinutes * 0.3) / dayCount * (0.5 + Math.random() * 0.5));
-    } else if (utilizationPattern === 'completed') {
-      // High usage to reach 85%+
-      const targetDaily = (totalMinutes * 0.88) / dayCount;
-      dailyMinutes = Math.round(targetDaily * (0.9 + Math.random() * 0.2));
-    }
-
-    accumulatedMinutes += dailyMinutes;
-    usage.push({
-      date: currentDate.toISOString().split('T')[0],
-      minutes: dailyMinutes,
-    });
-
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-
-  // Cap total to not exceed totalMinutes
-  if (accumulatedMinutes > totalMinutes) {
-    const ratio = totalMinutes / accumulatedMinutes;
-    return usage.map(u => ({
-      ...u,
-      minutes: Math.round(u.minutes * ratio),
-    }));
-  }
-
-  return usage;
+interface CacheEntry {
+  data: any;
+  timestamp: number;
 }
 
-function createGroups(): Group[] {
-  const groups: Group[] = [];
-  const patterns: ('good' | 'declining' | 'critical' | 'completed')[] = [
-    'good',
-    'declining',
-    'critical',
-    'completed',
-  ];
-  let groupId = 1;
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+const cache: { [key: string]: CacheEntry } = {};
 
-  // Create ~50 groups distributed across 6 salespeople
-  const groupsPerSalesperson = Math.floor(50 / 6);
-  const remainder = 50 % 6;
+function parseCSV(csvText: string): string[][] {
+  const lines = csvText.split('\n');
+  const result: string[][] = [];
 
-  for (let spIdx = 0; spIdx < salespeople.length; spIdx++) {
-    const count = spIdx < remainder ? groupsPerSalesperson + 1 : groupsPerSalesperson;
+  for (const line of lines) {
+    if (!line.trim()) continue;
 
-    for (let i = 0; i < count; i++) {
-      const totalMinutes = Math.floor(Math.random() * 19000) + 1000;
-      const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+    const row: string[] = [];
+    let current = '';
+    let insideQuotes = false;
 
-      // Mix of active (mostly) and completed groups
-      const isActive = Math.random() > 0.2;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
 
-      // Start dates spread across 2025-2026
-      const startMonthOffset = Math.floor(Math.random() * 12);
-      const startDate = new Date(2025, startMonthOffset, Math.floor(Math.random() * 20) + 1);
-
-      // End dates are 3-12 months after start
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + (Math.floor(Math.random() * 9) + 3));
-
-      const now = new Date('2026-03-29');
-      const actualEndDate = isActive ? new Date(now.getFullYear(), now.getMonth() + 3) : endDate;
-
-      const dailyUsage = generateDailyUsage(startDate, actualEndDate, totalMinutes, pattern);
-      const usedMinutes = dailyUsage.reduce((sum, du) => sum + du.minutes, 0);
-
-      const hrManager = hrManagers[Math.floor(Math.random() * hrManagers.length)];
-      const companyName = companyNames[groupId % companyNames.length];
-
-      groups.push({
-        id: `grp${groupId}`,
-        name: `Pakiet ${groupId} - ${companyName}`,
-        companyName,
-        salesPersonId: salespeople[spIdx].id,
-        totalMinutes,
-        usedMinutes,
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: actualEndDate.toISOString().split('T')[0],
-        dailyUsage,
-        hrManager,
-        isActive,
-      });
-
-      groupId++;
+      if (char === '"') {
+        if (insideQuotes && nextChar === '"') {
+          current += '"';
+          i++;
+        } else {
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === ',' && !insideQuotes) {
+        row.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
     }
+
+    row.push(current);
+    result.push(row);
+  }
+
+  return result;
+}
+
+async function fetchCSV(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+    }
+    return await response.text();
+  } catch (error) {
+    console.error('Error fetching CSV:', error);
+    throw error;
+  }
+}
+
+interface ValidgroupRow {
+  id: string;
+  created: string;
+  secondsavailable: string;
+  secondsused: string;
+  second_to_used: string;
+  name: string;
+  internalname: string;
+  validuntil: string;
+  salesmanid: string;
+  hr_manager_name: string;
+  hr_manager_email: string;
+  hr_manager_phone: string;
+  salesperson_name: string;
+}
+
+async function parseValidgroupData(): Promise<ValidgroupRow[]> {
+  const csvText = await fetchCSV(CSV_URLS.validgroup);
+  const rows = parseCSV(csvText);
+
+  if (rows.length < 2) return [];
+
+  const headers = rows[0];
+  const data: ValidgroupRow[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length < 14 || !row[0].trim()) continue;
+
+    data.push({
+      id: row[0].trim(),
+      created: row[1].trim(),
+      secondsavailable: row[2].trim(),
+      secondsused: row[3].trim(),
+      second_to_used: row[4].trim(),
+      name: row[5].trim(),
+      internalname: row[6].trim(),
+      validuntil: row[7].trim(),
+      salesmanid: row[9].trim(),
+      hr_manager_name: row[10].trim(),
+      hr_manager_email: row[11].trim(),
+      hr_manager_phone: row[12].trim(),
+      salesperson_name: row[13].trim().replace(/^\s+/, ''),
+    });
+  }
+
+  return data;
+}
+
+interface TalksessionRow {
+  usersgroupid: string;
+  start_pl: string;
+  duration_min: string;
+}
+
+async function parseTalksessionData(): Promise<TalksessionRow[]> {
+  const csvText = await fetchCSV(CSV_URLS.talksession);
+  const rows = parseCSV(csvText);
+
+  if (rows.length < 2) return [];
+
+  const data: TalksessionRow[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length < 3 || !row[0].trim()) continue;
+
+    data.push({
+      usersgroupid: row[0].trim(),
+      start_pl: row[1].trim(),
+      duration_min: row[2].trim(),
+    });
+  }
+
+  return data;
+}
+
+function parseDate(dateStr: string): string {
+  if (!dateStr) return '';
+
+  dateStr = dateStr.trim();
+
+  if (dateStr.includes('/')) {
+    const parts = dateStr.split(' ')[0].split('/');
+    if (parts.length === 3) {
+      const month = parts[0].padStart(2, '0');
+      const day = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  return '';
+}
+
+function isGroupActive(endDate: string): boolean {
+  const now = new Date();
+  const end = new Date(endDate);
+  return end > now;
+}
+
+async function buildGroups(): Promise<Group[]> {
+  const validgroupData = await parseValidgroupData();
+  const talksessionData = await parseTalksessionData();
+
+  const groups: Group[] = [];
+  const uniqueSalespeople = new Set<string>();
+
+  const talksessionByGroup: { [key: string]: DailyUsage[] } = {};
+  for (const session of talksessionData) {
+    const groupId = session.usersgroupid;
+    const date = parseDate(session.start_pl);
+    const minutes = parseInt(session.duration_min) || 0;
+
+    if (!talksessionByGroup[groupId]) {
+      talksessionByGroup[groupId] = [];
+    }
+
+    const existing = talksessionByGroup[groupId].find(du => du.date === date);
+    if (existing) {
+      existing.minutes += minutes;
+    } else {
+      talksessionByGroup[groupId].push({ date, minutes });
+    }
+  }
+
+  for (const vg of validgroupData) {
+    const startDate = parseDate(vg.created);
+    const endDate = parseDate(vg.validuntil);
+
+    if (!startDate || !endDate) continue;
+
+    const totalSeconds = parseInt(vg.second_to_used) || 0;
+    const usedSeconds = parseInt(vg.secondsused) || 0;
+
+    const totalMinutes = Math.round(totalSeconds / 60);
+    const usedMinutes = Math.round(usedSeconds / 60);
+
+    const isActive = isGroupActive(endDate);
+
+    const dailyUsage = talksessionByGroup[vg.id] || [];
+    dailyUsage.sort((a, b) => a.date.localeCompare(b.date));
+
+    const salesPersonName = vg.salesperson_name.trim();
+    uniqueSalespeople.add(salesPersonName);
+
+    groups.push({
+      id: vg.id,
+      name: vg.name,
+      companyName: vg.name,
+      salesPersonId: vg.salesmanid,
+      salesPersonName: salesPersonName,
+      totalMinutes,
+      usedMinutes,
+      startDate,
+      endDate,
+      dailyUsage,
+      hrManager: {
+        name: vg.hr_manager_name,
+        email: vg.hr_manager_email,
+        phone: vg.hr_manager_phone,
+      },
+      isActive,
+    });
   }
 
   return groups;
 }
 
-export const SALESPEOPLE = salespeople;
-export const GROUPS = createGroups();
+export function getSalespeopleFromData(): Salesperson[] {
+  const realSalespeople = [
+    'Anna Nas',
+    'Róża Donat',
+    'Wanda Lizm',
+    'Piotr Pan',
+    'Antoni Ogórkiewicz',
+    'Stefek Burczymucha',
+    'Zygzak Mcqueen',
+    'Anna Conda',
+    'Ewa Boligłowa',
+    'Roman Tyczny',
+    'Maria Pinda',
+    'Dobrosława Kiełbasa',
+    'Tytus Bomba',
+    'Jan Moczymorda',
+  ];
+
+  const salespeople: Salesperson[] = realSalespeople.map((name, idx) => {
+    const parts = name.trim().split(' ');
+    return {
+      id: `sp${idx + 1}`,
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' '),
+      role: 'salesperson',
+    };
+  });
+
+  return salespeople;
+}
+
+export async function fetchGroups(): Promise<Group[]> {
+  const cacheKey = 'groups';
+  const now = Date.now();
+
+  if (cache[cacheKey] && now - cache[cacheKey].timestamp < CACHE_DURATION) {
+    return cache[cacheKey].data;
+  }
+
+  const groups = await buildGroups();
+  cache[cacheKey] = { data: groups, timestamp: now };
+  return groups;
+}
+
+export async function getProcessedData() {
+  return {
+    groups: await fetchGroups(),
+    salespeople: getSalespeopleFromData(),
+  };
+}
+
+export const SALESPEOPLE = getSalespeopleFromData();

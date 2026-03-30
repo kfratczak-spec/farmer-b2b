@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GROUPS } from '@/lib/data';
+import { fetchGroups } from '@/lib/data';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,12 +19,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Fetch real data
+    const allGroups = await fetchGroups();
+
     // Filter groups based on role
-    let groups = GROUPS;
+    let groups = allGroups;
     if (userRole === 'salesperson') {
-      groups = GROUPS.filter((g) => g.salesPersonId === userId && g.isActive);
+      groups = allGroups.filter((g) => g.salesPersonId === userId && g.isActive);
     } else {
-      groups = GROUPS.filter((g) => g.isActive);
+      groups = allGroups.filter((g) => g.isActive);
     }
 
     return NextResponse.json({

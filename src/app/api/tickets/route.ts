@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const allTickets = generateTickets();
+    const allTickets = await generateTickets();
 
     // Filter tickets based on role
     let tickets = allTickets;
