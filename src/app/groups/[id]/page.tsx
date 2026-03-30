@@ -268,18 +268,38 @@ export default function GroupDetailPage() {
                 <h4 className="font-semibold text-red-600 mb-4">Otwarte tickety ({openTickets.length})</h4>
                 <div className="space-y-3">
                   {openTickets.map((ticket) => {
-                    let badgeBg = 'bg-green-100';
-                    let badgeText = 'text-green-800';
-                    let badgeLabel = 'Niskie ryzyko';
+                    // Risk badge styling
+                    let riskBadgeBg = 'bg-yellow-100';
+                    let riskBadgeText = 'text-yellow-800';
+                    let riskBadgeLabel = 'Niskie ryzyko';
 
                     if (ticket.riskLevel === 'critical') {
-                      badgeBg = 'bg-red-100';
-                      badgeText = 'text-red-800';
-                      badgeLabel = 'Krytyczne';
+                      riskBadgeBg = 'bg-red-100';
+                      riskBadgeText = 'text-red-800';
+                      riskBadgeLabel = 'Krytyczne';
                     } else if (ticket.riskLevel === 'high_risk') {
-                      badgeBg = 'bg-orange-100';
-                      badgeText = 'text-orange-800';
-                      badgeLabel = 'Wysokie ryzyko';
+                      riskBadgeBg = 'bg-orange-100';
+                      riskBadgeText = 'text-orange-800';
+                      riskBadgeLabel = 'Wysokie ryzyko';
+                    }
+
+                    // Type badge styling
+                    let typeBadgeBg = 'bg-gray-100';
+                    let typeBadgeText = 'text-gray-800';
+                    let borderColor = 'border-l-gray-500';
+
+                    if (ticket.type === 'onboarding') {
+                      typeBadgeBg = 'bg-blue-100';
+                      typeBadgeText = 'text-blue-800';
+                      borderColor = 'border-l-4 border-blue-500';
+                    } else if (ticket.type === 'activity') {
+                      typeBadgeBg = 'bg-red-100';
+                      typeBadgeText = 'text-red-800';
+                      borderColor = 'border-l-4 border-red-500';
+                    } else if (ticket.type === 'upsell') {
+                      typeBadgeBg = 'bg-green-100';
+                      typeBadgeText = 'text-green-800';
+                      borderColor = 'border-l-4 border-green-500';
                     }
 
                     return (
@@ -287,21 +307,26 @@ export default function GroupDetailPage() {
                         key={ticket.id}
                         href={`/tickets?highlight=${ticket.id}`}
                       >
-                        <div className="border-l-4 border-red-500 bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition-colors cursor-pointer">
+                        <div className={`${borderColor} bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors cursor-pointer`}>
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900">{ticket.description}</p>
                               <p className="text-sm text-gray-600 mt-1">
-                                Otwarte od: {ticket.createdAt} ({ticket.daysOpen} dni temu)
+                                Otwarte od: {ticket.createdAt} ({ticket.daysOpen} dni)
                               </p>
                               <div className="flex gap-4 mt-2 text-xs text-gray-600">
                                 <span>Użycie: {ticket.utilizationPercent}%</span>
                                 <span>Oczekiwane: {ticket.expectedUtilizationPercent}%</span>
                               </div>
                             </div>
-                            <span className={`${badgeBg} ${badgeText} px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ml-4`}>
-                              {badgeLabel}
-                            </span>
+                            <div className="flex flex-col gap-2 ml-4">
+                              <span className={`${typeBadgeBg} ${typeBadgeText} px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
+                                {ticket.typeLabel}
+                              </span>
+                              <span className={`${riskBadgeBg} ${riskBadgeText} px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
+                                {riskBadgeLabel}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </Link>

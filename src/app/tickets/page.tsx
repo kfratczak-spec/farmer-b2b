@@ -11,6 +11,7 @@ export default function TicketsPage() {
   const [user, setUser] = useState<any>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [riskFilter, setRiskFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -55,6 +56,10 @@ export default function TicketsPage() {
   // Filter tickets
   let filteredTickets = tickets;
 
+  if (typeFilter !== 'all') {
+    filteredTickets = filteredTickets.filter((t) => t.type === typeFilter);
+  }
+
   if (riskFilter !== 'all') {
     filteredTickets = filteredTickets.filter((t) => t.riskLevel === riskFilter);
   }
@@ -67,9 +72,13 @@ export default function TicketsPage() {
     );
   }
 
-  // Sort by risk level and days open
+  // Sort by type priority and risk level
+  const typePriority = { onboarding: 3, activity: 2, upsell: 1 };
+  const riskOrder = { critical: 3, high_risk: 2, low_risk: 1 };
+
   filteredTickets = filteredTickets.sort((a, b) => {
-    const riskOrder = { critical: 3, high_risk: 2, low_risk: 1 };
+    const typeDiff = typePriority[b.type] - typePriority[a.type];
+    if (typeDiff !== 0) return typeDiff;
     const riskDiff = riskOrder[b.riskLevel] - riskOrder[a.riskLevel];
     if (riskDiff !== 0) return riskDiff;
     return b.daysOpen - a.daysOpen;
@@ -77,6 +86,9 @@ export default function TicketsPage() {
 
   const stats = {
     total: tickets.length,
+    onboarding: tickets.filter((t) => t.type === 'onboarding').length,
+    activity: tickets.filter((t) => t.type === 'activity').length,
+    upsell: tickets.filter((t) => t.type === 'upsell').length,
     critical: tickets.filter((t) => t.riskLevel === 'critical').length,
     highRisk: tickets.filter((t) => t.riskLevel === 'high_risk').length,
     lowRisk: tickets.filter((t) => t.riskLevel === 'low_risk').length,
@@ -91,27 +103,27 @@ export default function TicketsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Tickety</h1>
           <p className="text-gray-600 mt-2">
-            Zarządzanie alertami o niskim wykorzystaniu grup
+            Zarządzanie ticketami: onboarding, aktywność i upsell
           </p>
         </div>
 
-        {/* Stats */}
+        {/* Stats by type */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
             <p className="text-gray-600 text-sm font-medium mb-1">Razem</p>
             <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
           </div>
+          <div className="bg-blue-50 rounded-lg border border-blue-200 p-4 shadow-sm">
+            <p className="text-blue-600 text-sm font-medium mb-1">Onboarding</p>
+            <p className="text-3xl font-bold text-blue-700">{stats.onboarding}</p>
+          </div>
           <div className="bg-red-50 rounded-lg border border-red-200 p-4 shadow-sm">
-            <p className="text-red-600 text-sm font-medium mb-1">Krytyczne</p>
-            <p className="text-3xl font-bold text-red-700">{stats.critical}</p>
+            <p className="text-red-600 text-sm font-medium mb-1">Aktywność</p>
+            <p className="text-3xl font-bold text-red-700">{stats.activity}</p>
           </div>
-          <div className="bg-orange-50 rounded-lg border border-orange-200 p-4 shadow-sm">
-            <p className="text-orange-600 text-sm font-medium mb-1">Wysokie ryzyko</p>
-            <p className="text-3xl font-bold text-orange-700">{stats.highRisk}</p>
-          </div>
-          <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-4 shadow-sm">
-            <p className="text-yellow-600 text-sm font-medium mb-1">Niskie ryzyko</p>
-            <p className="text-3xl font-bold text-yellow-700">{stats.lowRisk}</p>
+          <div className="bg-green-50 rounded-lg border border-green-200 p-4 shadow-sm">
+            <p className="text-green-600 text-sm font-medium mb-1">Upsell</p>
+            <p className="text-3xl font-bold text-green-700">{stats.upsell}</p>
           </div>
         </div>
 
@@ -124,6 +136,16 @@ export default function TicketsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">Wszystkie typy</option>
+            <option value="onboarding">Onboarding</option>
+            <option value="activity">Aktywność</option>
+            <option value="upsell">Upsell</option>
+          </select>
           <select
             value={riskFilter}
             onChange={(e) => setRiskFilter(e.target.value)}

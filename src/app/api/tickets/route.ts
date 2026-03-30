@@ -27,9 +27,13 @@ export async function GET(request: NextRequest) {
       tickets = allTickets.filter((t) => t.salesPersonName === fullName);
     }
 
-    // Sort by risk level (critical first) and by days open
+    // Sort by ticket type priority, then risk level, then days open
+    const typePriority = { activity: 3, onboarding: 2, upsell: 1 };
+    const riskOrder = { critical: 3, high_risk: 2, low_risk: 1 };
+
     tickets = tickets.sort((a, b) => {
-      const riskOrder = { critical: 3, high_risk: 2, low_risk: 1 };
+      const typeDiff = typePriority[b.type] - typePriority[a.type];
+      if (typeDiff !== 0) return typeDiff;
       const riskDiff = riskOrder[b.riskLevel] - riskOrder[a.riskLevel];
       if (riskDiff !== 0) return riskDiff;
       return b.daysOpen - a.daysOpen;
@@ -41,6 +45,9 @@ export async function GET(request: NextRequest) {
       total: tickets.length,
       summary: {
         open: tickets.filter((t) => t.status === 'open').length,
+        onboarding: tickets.filter((t) => t.type === 'onboarding').length,
+        activity: tickets.filter((t) => t.type === 'activity').length,
+        upsell: tickets.filter((t) => t.type === 'upsell').length,
         critical: tickets.filter((t) => t.riskLevel === 'critical').length,
         highRisk: tickets.filter((t) => t.riskLevel === 'high_risk').length,
         lowRisk: tickets.filter((t) => t.riskLevel === 'low_risk').length,

@@ -98,6 +98,9 @@ export default function DashboardPage() {
 
   const criticalCount = tickets.filter((t) => t.riskLevel === 'critical').length;
   const highRiskCount = tickets.filter((t) => t.riskLevel === 'high_risk').length;
+  const onboardingCount = tickets.filter((t) => t.type === 'onboarding').length;
+  const activityCount = tickets.filter((t) => t.type === 'activity').length;
+  const upsellCount = tickets.filter((t) => t.type === 'upsell').length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -107,7 +110,7 @@ export default function DashboardPage() {
         {/* Welcome section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            Witaj, {user.firstName}! 👋
+            Witaj, {user.firstName}!
           </h1>
           <p className="text-gray-600 mt-2">
             {user.role === 'head_of_sales'
@@ -121,15 +124,31 @@ export default function DashboardPage() {
           <StatsCard label="Grupy aktywne" value={groups.length} />
           <StatsCard label="Średnie wykorzystanie" value={`${avgUtilization}%`} />
           <StatsCard
-            label="Tickety krytyczne"
-            value={criticalCount}
-            changeType={criticalCount > 0 ? 'negative' : 'positive'}
+            label="Tickety razem"
+            value={tickets.length}
+            changeType={tickets.length > 0 ? 'negative' : 'positive'}
           />
           <StatsCard
-            label="Wysokie ryzyko"
-            value={highRiskCount}
-            changeType={highRiskCount > 0 ? 'negative' : 'positive'}
+            label="Onboarding"
+            value={onboardingCount}
+            changeType={onboardingCount > 0 ? 'negative' : 'positive'}
           />
+        </div>
+
+        {/* Ticket types stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-red-50 rounded-lg border border-red-200 p-4 shadow-sm">
+            <p className="text-red-600 text-sm font-medium mb-1">Aktywność</p>
+            <p className="text-3xl font-bold text-red-700">{activityCount}</p>
+          </div>
+          <div className="bg-green-50 rounded-lg border border-green-200 p-4 shadow-sm">
+            <p className="text-green-600 text-sm font-medium mb-1">Upsell</p>
+            <p className="text-3xl font-bold text-green-700">{upsellCount}</p>
+          </div>
+          <div className="bg-orange-50 rounded-lg border border-orange-200 p-4 shadow-sm">
+            <p className="text-orange-600 text-sm font-medium mb-1">Wysokie ryzyko</p>
+            <p className="text-3xl font-bold text-orange-700">{highRiskCount}</p>
+          </div>
         </div>
 
         {/* Groups section */}

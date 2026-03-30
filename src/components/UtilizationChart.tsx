@@ -1,6 +1,6 @@
 'use client';
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { ForecastDataPoint } from '@/lib/forecast';
 
 interface UtilizationChartProps {
@@ -32,6 +32,12 @@ export default function UtilizationChart({ data, title }: UtilizationChartProps)
             labelFormatter={(label) => `Data: ${label}`}
           />
           <Legend />
+          <ReferenceLine
+            x={new Date().toISOString().split('T')[0]}
+            stroke="#ef4444"
+            strokeDasharray="5 5"
+            label={{ value: 'Dziś', position: 'top', fill: '#ef4444', fontSize: 12 }}
+          />
           <Line
             type="monotone"
             dataKey="actual"

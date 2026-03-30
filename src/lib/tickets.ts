@@ -1,10 +1,12 @@
 import { fetchGroups } from './data';
 
+export type TicketType = 'onboarding' | 'activity' | 'upsell';
 export type RiskLevel = 'low_risk' | 'high_risk' | 'critical';
 export type TicketStatus = 'open' | 'closed';
 
 export interface Ticket {
   id: string;
+  type: TicketType;
   groupId: string;
   groupName: string;
   companyName: string;
@@ -19,6 +21,8 @@ export interface Ticket {
   description: string;
   utilizationPercent: number;
   expectedUtilizationPercent: number;
+  typeLabel: string;
+  typeColor: string;
 }
 
 function calculateExpectedUtilization(
@@ -40,15 +44,16 @@ function calculateExpectedUtilization(
   return Math.min(elapsedRatio * targetUtilization, targetUtilization);
 }
 
-function calculateRiskLevel(
-  currentUtilization: number,
-  expectedUtilization: number
-): RiskLevel {
-  const difference = expectedUtilization - currentUtilization;
+function getDaysOld(startDate: string): number {
+  const now = new Date();
+  const start = new Date(startDate);
+  return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
 
-  if (difference > 0.25) return 'critical';
-  if (difference > 0.1) return 'high_risk';
-  return 'low_risk';
+function getDaysRemaining(endDate: string): number {
+  const now = new Date();
+  const end = new Date(endDate);
+  return Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export async function generateTickets(): Promise<Ticket[]> {
@@ -72,42 +77,126 @@ export async function generateTickets(): Promise<Ticket[]> {
       0.75
     );
 
-    const riskLevel = calculateRiskLevel(currentUtilization, expectedUtilization);
+    const daysOld = getDaysOld(group.startDate);
+    const daysRemaining = getDaysRemaining(group.endDate);
+    const percentUsed = (group.usedMinutes / group.totalMinutes) * 100;
+    const utilizationDiff = (expectedUtilization - currentUtilization) * 100; // how far behind in percentage points
 
-    // Only create tickets if there's actual risk (below expected trajectory)
-    if (riskLevel === 'low_risk' && currentUtilization > 0.7) continue;
+    let ticketToAdd: Ticket | null = null;
 
-    // Calculate days since group start or last 30 days if older
-    const daysOpen = Math.min(
-      Math.ceil((now.getTime() - groupStart.getTime()) / (1000 * 60 * 60 * 24)),
-      30
-    );
+    // ACTIVITY TICKETS - Higher priority
+    if (daysOld > 30 && utilizationDiff > 10) {
+      // Activity ticket: group is old and behind on utilization
+      let riskLevel: RiskLevel = 'low_risk';
+      if (utilizationDiff > 25) {
+        riskLevel = 'critical';
+      } else if (utilizationDiff > 15) {
+        riskLevel = 'high_risk';
+      }
 
-    let description = '';
-    if (riskLevel === 'critical') {
-      description = `Zagrożenie: wykorzystanie wynosi ${(currentUtilization * 100).toFixed(0)}%, a oczekiwane to ${(expectedUtilization * 100).toFixed(0)}%`;
-    } else if (riskLevel === 'high_risk') {
-      description = `Ostrzeżenie: wykorzystanie spada poniżej oczekiwanego. Obecny poziom ${(currentUtilization * 100).toFixed(0)}%`;
-    } else {
-      description = `Monitorowanie: wykorzystanie jest niższe niż oczekiwane`;
+      const description = `Aktywność: Wykorzystanie ${(currentUtilization * 100).toFixed(0)}% vs oczekiwane ${(expectedUtilization * 100).toFixed(0)}%`;
+
+      ticketToAdd = {
+        id: `tkt-activity-${group.id}`,
+        type: 'activity',
+        groupId: group.id,
+        groupName: group.name,
+        companyName: group.companyName,
+        salesPersonId: group.salesPersonId,
+        salesPersonName: group.salesPersonName,
+        riskLevel,
+        status: 'open',
+        createdAt: groupStart.toISOString().split('T')[0],
+        lastActivityAt: now.toISOString().split('T')[0],
+        daysOpen: Math.min(daysOld, 120),
+        description,
+        utilizationPercent: Math.round(currentUtilization * 100),
+        expectedUtilizationPercent: Math.round(expectedUtilization * 100),
+        typeLabel: 'Aktywność',
+        typeColor: riskLevel === 'critical' ? 'red' : riskLevel === 'high_risk' ? 'orange' : 'yellow',
+      };
     }
 
-    tickets.push({
-      id: `tkt${group.id}`,
-      groupId: group.id,
-      groupName: group.name,
-      companyName: group.companyName,
-      salesPersonId: group.salesPersonId,
-      salesPersonName: group.salesPersonName,
-      riskLevel,
-      status: 'open',
-      createdAt: groupStart.toISOString().split('T')[0],
-      lastActivityAt: now.toISOString().split('T')[0],
-      daysOpen,
-      description,
-      utilizationPercent: Math.round(currentUtilization * 100),
-      expectedUtilizationPercent: Math.round(expectedUtilization * 100),
-    });
+    // ONBOARDING TICKETS - Medium priority (only if no activity ticket)
+    if (!ticketToAdd && daysOld <= 30 && currentUtilization < expectedUtilization * 0.3) {
+      // Onboarding ticket: group is new and not being activated
+      let riskLevel: RiskLevel = 'low_risk';
+      const utilizationPercent = currentUtilization * 100;
+
+      if (utilizationPercent < 15) {
+        riskLevel = 'critical';
+      } else if (utilizationPercent < 25) {
+        riskLevel = 'high_risk';
+      }
+
+      const description = `Onboarding: Nowa grupa wymaga aktywacji. Obecne wykorzystanie ${(currentUtilization * 100).toFixed(0)}%`;
+
+      ticketToAdd = {
+        id: `tkt-onboarding-${group.id}`,
+        type: 'onboarding',
+        groupId: group.id,
+        groupName: group.name,
+        companyName: group.companyName,
+        salesPersonId: group.salesPersonId,
+        salesPersonName: group.salesPersonName,
+        riskLevel,
+        status: 'open',
+        createdAt: groupStart.toISOString().split('T')[0],
+        lastActivityAt: now.toISOString().split('T')[0],
+        daysOpen: daysOld,
+        description,
+        utilizationPercent: Math.round(currentUtilization * 100),
+        expectedUtilizationPercent: Math.round(expectedUtilization * 100),
+        typeLabel: 'Onboarding',
+        typeColor: 'blue',
+      };
+    }
+
+    // UPSELL TICKETS - Lower priority (only if no other ticket)
+    if (
+      !ticketToAdd &&
+      currentUtilization > 0.65 &&
+      (daysRemaining < 90 || percentUsed > 70)
+    ) {
+      // Upsell ticket: good utilization with limited time left
+      let riskLevel: RiskLevel = 'low_risk';
+      let description = '';
+
+      if (daysRemaining < 30) {
+        riskLevel = 'critical';
+        description = `Upsell: Gorący lead - grupa bardzo aktywna (${(currentUtilization * 100).toFixed(0)}%) z mniej niż 30 dniami pozostałymi`;
+      } else if (daysRemaining < 60) {
+        riskLevel = 'high_risk';
+        description = `Upsell: Ciepły lead - grupa aktywna (${(currentUtilization * 100).toFixed(0)}%) z 30-60 dniami pozostałymi`;
+      } else {
+        riskLevel = 'low_risk';
+        description = `Upsell: Wczesny sygnał - grupa dobrze się rozwija (${(currentUtilization * 100).toFixed(0)}%), okazja na ekspansję`;
+      }
+
+      ticketToAdd = {
+        id: `tkt-upsell-${group.id}`,
+        type: 'upsell',
+        groupId: group.id,
+        groupName: group.name,
+        companyName: group.companyName,
+        salesPersonId: group.salesPersonId,
+        salesPersonName: group.salesPersonName,
+        riskLevel,
+        status: 'open',
+        createdAt: groupStart.toISOString().split('T')[0],
+        lastActivityAt: now.toISOString().split('T')[0],
+        daysOpen: daysOld,
+        description,
+        utilizationPercent: Math.round(currentUtilization * 100),
+        expectedUtilizationPercent: Math.round(expectedUtilization * 100),
+        typeLabel: 'Upsell',
+        typeColor: riskLevel === 'critical' ? 'green' : 'purple',
+      };
+    }
+
+    if (ticketToAdd) {
+      tickets.push(ticketToAdd);
+    }
   }
 
   return tickets;
