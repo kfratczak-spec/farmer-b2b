@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
 import Header from '@/components/Header';
 import UtilizationChart from '@/components/UtilizationChart';
+import WeeklyTempoChart from '@/components/WeeklyTempoChart';
+import EngagementStats from '@/components/EngagementStats';
+import KeyDatesTimeline from '@/components/KeyDatesTimeline';
+import RenewalProbabilityCard from '@/components/RenewalProbabilityCard';
 import { Group } from '@/lib/data';
 import { Ticket } from '@/lib/tickets';
 import { ForecastStats, calculateForecastStats } from '@/lib/forecast';
@@ -84,11 +89,9 @@ export default function GroupDetailPage() {
 
   const totalPercent = forecast.currentUtilization * 100;
   const todayPercent = forecast.todayUtilization * 100;
-  const startDate = new Date(group.startDate);
-  const endDate = new Date(group.endDate);
   const daysRemaining = forecast.daysRemaining;
 
-  // Kolory bazują na "% na dziś"
+  // Colors based on daily utilization
   let todayColor = 'text-green-600';
   let todayBgColor = 'bg-green-50';
   if (todayPercent < 40) {
@@ -101,6 +104,10 @@ export default function GroupDetailPage() {
     todayColor = 'text-yellow-600';
     todayBgColor = 'bg-yellow-50';
   }
+
+  // Separate open and closed tickets
+  const openTickets = tickets.filter(t => t.status === 'open');
+  const closedTickets = tickets.filter(t => t.status === 'closed');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -120,7 +127,7 @@ export default function GroupDetailPage() {
           <p className="text-gray-600 mt-2">{group.name}</p>
         </div>
 
-        {/* Main stats */}
+        {/* Main stats grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className={`${todayBgColor} border border-gray-200 rounded-lg p-6 shadow-sm`}>
             <p className="text-gray-600 text-sm font-medium mb-2">Wykorzystanie na dziś</p>
@@ -163,7 +170,31 @@ export default function GroupDetailPage() {
           </div>
         </div>
 
-        {/* Key info */}
+        {/* Renewal probability card */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <RenewalProbabilityCard
+            probability={forecast.renewalProbability}
+            classification={forecast.renewalProbabilityClass}
+          />
+        </div>
+
+        {/* Main utilization chart */}
+        <div className="mb-8">
+          <UtilizationChart
+            data={forecast.dataPoints}
+            title="Przebieg wykorzystania minut"
+          />
+        </div>
+
+        {/* Weekly tempo chart */}
+        <div className="mb-8">
+          <WeeklyTempoChart
+            dailyUsage={group.dailyUsage}
+            title="Tempo tygodniowe"
+          />
+        </div>
+
+        {/* Two-column info section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="font-bold text-lg mb-4">Informacje o grupie</h3>
@@ -208,48 +239,106 @@ export default function GroupDetailPage() {
           </div>
         </div>
 
-        {/* Chart */}
+        {/* Engagement stats */}
         <div className="mb-8">
-          <UtilizationChart
-            data={forecast.dataPoints}
-            title="Przebieg wykorzystania minut"
+          <EngagementStats
+            dailyUsage={group.dailyUsage}
+            title="Statystyki zaangażowania"
           />
         </div>
 
-        {/* Tickets */}
-        {tickets.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-            <h3 className="font-bold text-lg mb-4">Tickety grupy</h3>
-            <div className="space-y-3">
-              {tickets.map((ticket) => {
-                let badgeClass = 'badge-low-risk';
-                if (ticket.riskLevel === 'critical') {
-                  badgeClass = 'badge-critical';
-                } else if (ticket.riskLevel === 'high_risk') {
-                  badgeClass = 'badge-high-risk';
-                }
+        {/* Key dates timeline */}
+        <div className="mb-8">
+          <KeyDatesTimeline
+            startDate={group.startDate}
+            endDate={group.endDate}
+            dailyUsage={group.dailyUsage}
+            title="Oś czasu ważnych dat"
+          />
+        </div>
 
-                return (
-                  <div key={ticket.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-semibold">{ticket.description}</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Otwarte od: {ticket.createdAt}
-                        </p>
+        {/* Tickets section */}
+        {(openTickets.length > 0 || closedTickets.length > 0) && (
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+            <h3 className="font-bold text-lg mb-6">Tickety grupy</h3>
+
+            {/* Open tickets */}
+            {openTickets.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-red-600 mb-4">Otwarte tickety ({openTickets.length})</h4>
+                <div className="space-y-3">
+                  {openTickets.map((ticket) => {
+                    let badgeBg = 'bg-green-100';
+                    let badgeText = 'text-green-800';
+                    let badgeLabel = 'Niskie ryzyko';
+
+                    if (ticket.riskLevel === 'critical') {
+                      badgeBg = 'bg-red-100';
+                      badgeText = 'text-red-800';
+                      badgeLabel = 'Krytyczne';
+                    } else if (ticket.riskLevel === 'high_risk') {
+                      badgeBg = 'bg-orange-100';
+                      badgeText = 'text-orange-800';
+                      badgeLabel = 'Wysokie ryzyko';
+                    }
+
+                    return (
+                      <Link
+                        key={ticket.id}
+                        href={`/tickets?highlight=${ticket.id}`}
+                      >
+                        <div className="border-l-4 border-red-500 bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition-colors cursor-pointer">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{ticket.description}</p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                Otwarte od: {ticket.createdAt} ({ticket.daysOpen} dni temu)
+                              </p>
+                              <div className="flex gap-4 mt-2 text-xs text-gray-600">
+                                <span>Użycie: {ticket.utilizationPercent}%</span>
+                                <span>Oczekiwane: {ticket.expectedUtilizationPercent}%</span>
+                              </div>
+                            </div>
+                            <span className={`${badgeBg} ${badgeText} px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ml-4`}>
+                              {badgeLabel}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Closed tickets */}
+            {closedTickets.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-gray-600 mb-4">Historia zamkniętych ticketów ({closedTickets.length})</h4>
+                <div className="space-y-2">
+                  {closedTickets.map((ticket) => (
+                    <Link
+                      key={ticket.id}
+                      href={`/tickets?highlight=${ticket.id}`}
+                    >
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors cursor-pointer">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-700">{ticket.description}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Zamknięty: {ticket.closedAt}
+                            </p>
+                          </div>
+                          <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-medium">
+                            Zamknięty
+                          </span>
+                        </div>
                       </div>
-                      <span className={badgeClass}>
-                        {ticket.riskLevel === 'critical'
-                          ? 'Krytyczne'
-                          : ticket.riskLevel === 'high_risk'
-                          ? 'Wysokie ryzyko'
-                          : 'Niskie ryzyko'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
