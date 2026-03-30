@@ -36,8 +36,9 @@ export async function GET(request: NextRequest) {
       total: groups.length,
     });
   } catch (error) {
+    console.error('Groups API error:', error);
     return NextResponse.json(
-      { error: 'Błąd serwera' },
+      { error: 'Błąd serwera', details: String(error) },
       { status: 500 }
     );
   }

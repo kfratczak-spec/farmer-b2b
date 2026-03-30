@@ -81,11 +81,21 @@ function parseCSV(csvText: string): string[][] {
 
 async function fetchCSV(url: string): Promise<string> {
   try {
-    const response = await fetch(url, { cache: 'no-store' });
+    const response = await fetch(url, {
+      next: { revalidate: 3600 },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; FarmerB2B/1.0)',
+        'Accept': 'text/csv,text/plain,*/*',
+      },
+      redirect: 'follow',
+    });
     if (!response.ok) {
-      throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+      console.error(`CSV fetch failed: status=${response.status} statusText=${response.statusText} url=${url}`);
+      throw new Error(`Failed to fetch CSV: ${response.status} ${response.statusText}`);
     }
-    return await response.text();
+    const text = await response.text();
+    console.log(`CSV fetched OK: ${text.length} chars from ${url.substring(0, 80)}...`);
+    return text;
   } catch (error) {
     console.error('Error fetching CSV:', error);
     throw error;
