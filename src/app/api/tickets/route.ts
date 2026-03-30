@@ -6,14 +6,14 @@ export async function GET(request: NextRequest) {
     // Get user from headers
     const token = request.headers.get('Authorization')?.replace('Bearer ', '');
 
-    let userId = '';
     let userRole = '';
+    let fullName = '';
 
     if (token) {
       try {
         const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
-        userId = decoded.id;
         userRole = decoded.role;
+        fullName = decoded.fullName || '';
       } catch (e) {
         // Invalid token
       }
@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
 
     // Filter tickets based on role
     let tickets = allTickets;
-    if (userRole === 'salesperson') {
-      tickets = allTickets.filter((t) => t.salesPersonId === userId);
+    if (userRole === 'salesperson' && fullName) {
+      tickets = allTickets.filter((t) => t.salesPersonName === fullName);
     }
 
     // Sort by risk level (critical first) and by days open

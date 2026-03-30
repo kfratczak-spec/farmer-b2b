@@ -49,8 +49,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const fullName = `${salesperson.firstName} ${salesperson.lastName}`;
     const token = Buffer.from(
-      JSON.stringify({ id: salesperson.id, role: salesperson.role })
+      JSON.stringify({ id: salesperson.id, role: salesperson.role, fullName })
     ).toString('base64');
 
     return NextResponse.json({
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
         id: salesperson.id,
         firstName: salesperson.firstName,
         lastName: salesperson.lastName,
+        fullName,
         role: salesperson.role,
       },
       token,

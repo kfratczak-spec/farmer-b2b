@@ -6,14 +6,14 @@ export async function GET(request: NextRequest) {
     // Get user from headers (client sends in Authorization header)
     const token = request.headers.get('Authorization')?.replace('Bearer ', '');
 
-    let userId = '';
     let userRole = '';
+    let fullName = '';
 
     if (token) {
       try {
         const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
-        userId = decoded.id;
         userRole = decoded.role;
+        fullName = decoded.fullName || '';
       } catch (e) {
         // Invalid token, return empty
       }
@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
 
     // Filter groups based on role
     let groups = allGroups;
-    if (userRole === 'salesperson') {
-      groups = allGroups.filter((g) => g.salesPersonId === userId && g.isActive);
+    if (userRole === 'salesperson' && fullName) {
+      groups = allGroups.filter((g) => g.salesPersonName === fullName && g.isActive);
     } else {
       groups = allGroups.filter((g) => g.isActive);
     }

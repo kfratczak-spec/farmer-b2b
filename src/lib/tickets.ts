@@ -9,6 +9,7 @@ export interface Ticket {
   groupName: string;
   companyName: string;
   salesPersonId: string;
+  salesPersonName: string;
   riskLevel: RiskLevel;
   status: TicketStatus;
   createdAt: string;
@@ -97,6 +98,7 @@ export async function generateTickets(): Promise<Ticket[]> {
       groupName: group.name,
       companyName: group.companyName,
       salesPersonId: group.salesPersonId,
+      salesPersonName: group.salesPersonName,
       riskLevel,
       status: 'open',
       createdAt: groupStart.toISOString().split('T')[0],
