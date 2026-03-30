@@ -25,9 +25,9 @@ export async function GET(
       try {
         const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
         userRole = decoded.role;
-        const userId = decoded.id;
+        const fullName = decoded.fullName || '';
 
-        if (userRole === 'salesperson' && group.salesPersonId !== userId) {
+        if (userRole === 'salesperson' && group.salesPersonName !== fullName) {
           return NextResponse.json(
             { error: 'Brak dostępu' },
             { status: 403 }
