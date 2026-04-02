@@ -203,7 +203,7 @@ export function generateActivityReport(data: ReportData): Buffer {
       `${ticket.utilizationPercent}%`,
       `${ticket.expectedUtilizationPercent}%`,
       ticket.daysOpen,
-      closedTicket ? formatClosedReason(closedTicket.closedReason) : '',
+      closedTicket && closedTicket.closedReason ? formatClosedReason(closedTicket.closedReason) : '',
     ]);
   });
 
@@ -327,7 +327,7 @@ export function generatePersonalReport(
       `${ticket.utilizationPercent}%`,
       `${ticket.expectedUtilizationPercent}%`,
       ticket.daysOpen,
-      closedTicket ? formatClosedReason(closedTicket.closedReason) : '',
+      closedTicket && closedTicket.closedReason ? formatClosedReason(closedTicket.closedReason) : '',
     ]);
   });
 

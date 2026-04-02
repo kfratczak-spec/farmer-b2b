@@ -3,11 +3,13 @@
 interface RenewalProbabilityCardProps {
   probability: number;
   classification: string;
+  ticketHistoryPenalty?: number;
 }
 
 export default function RenewalProbabilityCard({
   probability,
   classification,
+  ticketHistoryPenalty = 0,
 }: RenewalProbabilityCardProps) {
   // Determine color based on probability
   let bgColor = 'bg-red-50';
@@ -71,6 +73,12 @@ export default function RenewalProbabilityCard({
         <p className="text-sm text-gray-600 mt-4">
           Wyliczone na podstawie wykorzystania, trendu i czasu pozostałego
         </p>
+
+        {ticketHistoryPenalty > 0 && (
+          <p className="text-sm text-red-600 mt-3 font-medium">
+            Kara za historię ticketów: -{ticketHistoryPenalty} pkt
+          </p>
+        )}
       </div>
     </div>
   );

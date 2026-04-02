@@ -1,4 +1,5 @@
 import { Group } from './data';
+import { getTicketHistory } from './tickets';
 
 export interface ForecastDataPoint {
   date: string;
@@ -18,6 +19,7 @@ export interface ForecastStats {
   dataPoints: ForecastDataPoint[];
   renewalProbability: number;      // 0-100, chance of renewal
   renewalProbabilityClass: string; // "Bardzo wysokie" | "Wysokie" | "Średnie" | "Niskie" | "Bardzo niskie"
+  ticketHistoryPenalty: number;    // 0-20 points deducted
 }
 
 export function calculateForecastStats(group: Group): ForecastStats {
@@ -26,12 +28,12 @@ export function calculateForecastStats(group: Group): ForecastStats {
   const endDate = new Date(group.endDate);
 
   // Current utilization
-  const currentUtilization = group.usedMinutes / group.totalMinutes;
+  const currentUtilization = group.totalMinutes > 0 ? group.usedMinutes / group.totalMinutes : 0;
 
   // Expected utilization (linear to 75%)
   const totalMs = endDate.getTime() - startDate.getTime();
   const elapsedMs = now.getTime() - startDate.getTime();
-  const elapsedRatio = elapsedMs / totalMs;
+  const elapsedRatio = totalMs > 0 ? elapsedMs / totalMs : 0;
   const targetUtilization = 0.75;
   const expectedUtilization = Math.min(elapsedRatio * targetUtilization, targetUtilization);
 
@@ -45,7 +47,7 @@ export function calculateForecastStats(group: Group): ForecastStats {
   });
 
   const dailyUsageRate =
-    recentUsage.length > 0 ? recentUsage.reduce((sum, du) => sum + du.minutes, 0) / 14 : 0;
+    recentUsage.length > 0 ? recentUsage.reduce((sum, du) => sum + du.minutes, 0) / recentUsage.length : 0;
 
   // Forecast: based on recent trend, how much will be used by end date?
   const daysRemaining = Math.max(
@@ -65,7 +67,7 @@ export function calculateForecastStats(group: Group): ForecastStats {
   const isOnTrack = currentUtilization >= expectedUtilization * 0.95;
 
   // Calculate renewal probability
-  const { probability, classification } = calculateRenewalProbability(
+  const { probability, classification, ticketHistoryPenalty } = calculateRenewalProbability(
     group,
     currentUtilization,
     expectedUtilization,
@@ -88,7 +90,37 @@ export function calculateForecastStats(group: Group): ForecastStats {
     dataPoints,
     renewalProbability: probability,
     renewalProbabilityClass: classification,
+    ticketHistoryPenalty,
   };
+}
+
+function calculateTicketHistoryPenalty(groupId: string): number {
+  // Only count tickets from last 90 days
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  const history = getTicketHistory(groupId);
+  let penalty = 0;
+
+  for (const ticket of history) {
+    // Count cycles in last 90 days
+    const recentCycles = ticket.cycles.filter(c => new Date(c.openedAt) >= ninetyDaysAgo);
+
+    if (ticket.type === 'activity') {
+      // Activity tickets hurt most: 3 points per cycle, cap 10
+      penalty += Math.min(recentCycles.length * 3, 10);
+      // Plus 1 point per 20 days open in recent cycles
+      const recentDaysOpen = recentCycles.reduce((sum, c) => sum + c.daysOpen, 0);
+      penalty += Math.min(Math.floor(recentDaysOpen / 20), 5);
+    } else if (ticket.type === 'onboarding') {
+      // Onboarding: 1 point per cycle, cap 4
+      penalty += Math.min(recentCycles.length * 1, 4);
+    }
+    // Upsell tickets: 0 penalty (they're positive signals)
+  }
+
+  // Total cap: 20 points out of 100
+  return Math.min(penalty, 20);
 }
 
 function calculateRenewalProbability(
@@ -98,7 +130,7 @@ function calculateRenewalProbability(
   forecastedUtilization: number,
   daysRemaining: number,
   elapsedRatio: number
-): { probability: number; classification: string } {
+): { probability: number; classification: string; ticketHistoryPenalty: number } {
   // Calculate components with weights
   // 1. Current utilization vs expected (weight: 40%)
   const utilizationScore = Math.min(currentUtilization / Math.max(expectedUtilization, 0.1), 1);
@@ -112,11 +144,12 @@ function calculateRenewalProbability(
     return duDate >= thirtyDaysAgo;
   });
   let trendComponent = 15; // neutral
-  if (recentDays.length >= 2) {
-    const firstHalf = recentDays.slice(0, Math.floor(recentDays.length / 2));
-    const secondHalf = recentDays.slice(Math.floor(recentDays.length / 2));
-    const avgFirst = firstHalf.reduce((sum, du) => sum + du.minutes, 0) / firstHalf.length;
-    const avgSecond = secondHalf.reduce((sum, du) => sum + du.minutes, 0) / secondHalf.length;
+  if (recentDays.length >= 4) {
+    const midpoint = Math.floor(recentDays.length / 2);
+    const firstHalf = recentDays.slice(0, midpoint);
+    const secondHalf = recentDays.slice(midpoint);
+    const avgFirst = firstHalf.length > 0 ? firstHalf.reduce((sum, du) => sum + du.minutes, 0) / firstHalf.length : 0;
+    const avgSecond = secondHalf.length > 0 ? secondHalf.reduce((sum, du) => sum + du.minutes, 0) / secondHalf.length : 0;
     if (avgSecond > avgFirst) {
       trendComponent = 30; // improving
     } else if (avgSecond < avgFirst * 0.8) {
@@ -137,8 +170,11 @@ function calculateRenewalProbability(
   // 4. Forecasted end utilization (weight: 15%)
   const forecastComponent = Math.min(forecastedUtilization / 0.75, 1) * 15;
 
-  const totalProbability = utilizationComponent + trendComponent + timeComponent + forecastComponent;
-  const roundedProbability = Math.round(totalProbability);
+  // 5. Ticket history penalty (reduces probability based on ticket issues)
+  const ticketPenalty = calculateTicketHistoryPenalty(group.id);
+
+  const totalProbability = utilizationComponent + trendComponent + timeComponent + forecastComponent - ticketPenalty;
+  const roundedProbability = Math.round(Math.max(0, totalProbability)); // don't go below 0
 
   let classification = 'Bardzo niskie';
   if (roundedProbability >= 80) {
@@ -151,7 +187,7 @@ function calculateRenewalProbability(
     classification = 'Niskie';
   }
 
-  return { probability: roundedProbability, classification };
+  return { probability: roundedProbability, classification, ticketHistoryPenalty: ticketPenalty };
 }
 
 function generateChartDataPoints(
@@ -175,11 +211,16 @@ function generateChartDataPoints(
 
   // Build cumulative usage map for efficiency
   const cumulativeUsageMap: { [key: string]: number } = {};
+  // Sort daily usage by date for correct accumulation
+  const sortedUsage = [...group.dailyUsage].sort((a, b) => a.date.localeCompare(b.date));
   let accumulated = 0;
-  for (const usage of group.dailyUsage) {
+  for (const usage of sortedUsage) {
     accumulated += usage.minutes;
     cumulativeUsageMap[usage.date] = accumulated;
   }
+
+  // Build sorted date list for binary lookup of cumulative values
+  const usageDates = Object.keys(cumulativeUsageMap).sort();
 
   let currentDate = new Date(startDate);
   currentDate.setHours(0, 0, 0, 0);
@@ -187,19 +228,24 @@ function generateChartDataPoints(
   while (currentDate <= endDate) {
     const dateStr = currentDate.toISOString().split('T')[0];
 
-    // Calculate actual cumulative usage up to this date
+    // Use cumulative map: find the latest date <= currentDate
     let actualMinutes = 0;
-    for (const usage of group.dailyUsage) {
-      const usageDate = new Date(usage.date);
-      if (usageDate <= currentDate) {
-        actualMinutes += usage.minutes;
+    if (cumulativeUsageMap[dateStr] !== undefined) {
+      actualMinutes = cumulativeUsageMap[dateStr];
+    } else {
+      // Find the latest date before this one
+      for (let i = usageDates.length - 1; i >= 0; i--) {
+        if (usageDates[i] <= dateStr) {
+          actualMinutes = cumulativeUsageMap[usageDates[i]];
+          break;
+        }
       }
     }
-    const actualPercent = (actualMinutes / group.totalMinutes) * 100;
+    const actualPercent = group.totalMinutes > 0 ? (actualMinutes / group.totalMinutes) * 100 : 0;
 
     // Expected utilization at this date (linear to 75%)
     const elapsedMs = currentDate.getTime() - startDate.getTime();
-    const elapsedRatio = elapsedMs / totalMs;
+    const elapsedRatio = totalMs > 0 ? elapsedMs / totalMs : 0;
     const expectedPercent = Math.min(elapsedRatio * 75, 75);
 
     // Forecast: based on recent daily rate

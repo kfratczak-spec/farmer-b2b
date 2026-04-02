@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateTickets, getClosedTickets } from '@/lib/tickets';
+import { generateTickets, getClosedTickets, getTicketHistory, Ticket } from '@/lib/tickets';
+import { fetchGroups } from '@/lib/data';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +22,20 @@ export async function GET(request: NextRequest) {
 
     const allTickets = await generateTickets();
     const allClosedTickets = getClosedTickets();
+    const GROUPS = await fetchGroups();
+
+    // Get ticket history for user's groups
+    const ticketHistories: Record<string, Ticket[]> = {};
+    if (userRole === 'salesperson' && fullName) {
+      const userGroups = GROUPS.filter((g) => g.salesPersonName === fullName);
+      for (const group of userGroups) {
+        ticketHistories[group.id] = getTicketHistory(group.id);
+      }
+    } else {
+      for (const group of GROUPS) {
+        ticketHistories[group.id] = getTicketHistory(group.id);
+      }
+    }
 
     // Filter tickets based on role
     let tickets = allTickets;
@@ -46,6 +61,7 @@ export async function GET(request: NextRequest) {
       success: true,
       tickets,
       closedTickets,
+      ticketHistories,
       total: tickets.length,
       closedTotal: closedTickets.length,
       summary: {

@@ -235,6 +235,7 @@ export default function GroupDetailPage() {
           <RenewalProbabilityCard
             probability={forecast.renewalProbability}
             classification={forecast.renewalProbabilityClass}
+            ticketHistoryPenalty={forecast.ticketHistoryPenalty}
           />
         </div>
 
@@ -370,12 +371,26 @@ export default function GroupDetailPage() {
                               <div className="flex-1">
                                 <p className="font-semibold text-gray-900">{ticket.description}</p>
                                 <p className="text-sm text-gray-600 mt-1">
-                                  Otwarte od: {ticket.createdAt} ({ticket.daysOpen} dni)
+                                  Otwarte od: {ticket.createdAt} ({ticket.daysOpen} dni w obecnym cyklu)
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Razem dni otwarte: {ticket.totalDaysOpen} | Cykli: {ticket.cycleCount}
                                 </p>
                                 <div className="flex gap-4 mt-2 text-xs text-gray-600">
                                   <span>Użycie: {ticket.utilizationPercent}%</span>
                                   <span>Oczekiwane: {ticket.expectedUtilizationPercent}%</span>
                                 </div>
+                                {ticket.cycles && ticket.cycles.length > 0 && (
+                                  <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                                    {ticket.cycles.map((cycle, idx) => (
+                                      <div key={idx} className="mb-1">
+                                        Cykl {idx + 1}: otwarty {cycle.openedAt}
+                                        {cycle.closedAt && ` - zamknięty ${cycle.closedAt} (${cycle.daysOpen} dni)`}
+                                        {!cycle.closedAt && ' - aktualnie otwarty'}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                               <div className="flex flex-col gap-2 ml-4">
                                 <span className={`${typeBadgeBg} ${typeBadgeText} px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
