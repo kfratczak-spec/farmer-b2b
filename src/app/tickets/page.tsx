@@ -5,15 +5,21 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import TicketCard from '@/components/TicketCard';
 import { Ticket } from '@/lib/tickets';
+import { Activity } from '@/lib/activities';
 
 export default function TicketsPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [closedTickets, setClosedTickets] = useState<Ticket[]>([]);
+  const [activitiesByTicket, setActivitiesByTicket] = useState<
+    Record<string, Activity[]>
+  >({});
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [riskFilter, setRiskFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [ticketStatus, setTicketStatus] = useState<'open' | 'closed'>('open');
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -34,7 +40,28 @@ export default function TicketsPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        setTickets(data.tickets || []);
+        const loadedTickets = data.tickets || [];
+        const loadedClosedTickets = data.closedTickets || [];
+        setTickets(loadedTickets);
+        setClosedTickets(loadedClosedTickets);
+
+        // Fetch activities for all tickets
+        const allTickets = [...loadedTickets, ...loadedClosedTickets];
+        const ticketActivities: Record<string, Activity[]> = {};
+        for (const ticket of allTickets) {
+          try {
+            const activitiesRes = await fetch(
+              `/api/activities?ticketId=${ticket.id}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            const activitiesData = await activitiesRes.json();
+            ticketActivities[ticket.id] = activitiesData.activities || [];
+          } catch (err) {
+            console.error('Błąd pobierania aktywności:', err);
+            ticketActivities[ticket.id] = [];
+          }
+        }
+        setActivitiesByTicket(ticketActivities);
       } catch (error) {
         console.error('Błąd pobierania ticketów:', error);
       } finally {
@@ -53,8 +80,8 @@ export default function TicketsPage() {
     );
   }
 
-  // Filter tickets
-  let filteredTickets = tickets;
+  // Filter tickets based on status toggle
+  let filteredTickets = ticketStatus === 'open' ? tickets : closedTickets;
 
   if (typeFilter !== 'all') {
     filteredTickets = filteredTickets.filter((t) => t.type === typeFilter);
@@ -86,6 +113,7 @@ export default function TicketsPage() {
 
   const stats = {
     total: tickets.length,
+    closed: closedTickets.length,
     onboarding: tickets.filter((t) => t.type === 'onboarding').length,
     activity: tickets.filter((t) => t.type === 'activity').length,
     upsell: tickets.filter((t) => t.type === 'upsell').length,
@@ -107,11 +135,39 @@ export default function TicketsPage() {
           </p>
         </div>
 
+        {/* Status tabs */}
+        <div className="flex gap-2 mb-8 border-b border-gray-200">
+          <button
+            onClick={() => setTicketStatus('open')}
+            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+              ticketStatus === 'open'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Otwarte ({stats.total})
+          </button>
+          <button
+            onClick={() => setTicketStatus('closed')}
+            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+              ticketStatus === 'closed'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Zamknięte ({stats.closed})
+          </button>
+        </div>
+
         {/* Stats by type */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-            <p className="text-gray-600 text-sm font-medium mb-1">Razem</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+            <p className="text-gray-600 text-sm font-medium mb-1">
+              {ticketStatus === 'open' ? 'Razem otwarte' : 'Razem zamknięte'}
+            </p>
+            <p className="text-3xl font-bold text-gray-900">
+              {ticketStatus === 'open' ? stats.total : stats.closed}
+            </p>
           </div>
           <div className="bg-blue-50 rounded-lg border border-blue-200 p-4 shadow-sm">
             <p className="text-blue-600 text-sm font-medium mb-1">Onboarding</p>
@@ -166,7 +222,11 @@ export default function TicketsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTickets.map((ticket) => (
-              <TicketCard key={ticket.id} ticket={ticket} />
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                activityCount={(activitiesByTicket[ticket.id] || []).length}
+              />
             ))}
           </div>
         )}

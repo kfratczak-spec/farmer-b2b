@@ -3,6 +3,7 @@ import { fetchGroups } from './data';
 export type TicketType = 'onboarding' | 'activity' | 'upsell';
 export type RiskLevel = 'low_risk' | 'high_risk' | 'critical';
 export type TicketStatus = 'open' | 'closed';
+export type ClosedReason = 'auto_utilization_improved' | 'auto_onboarding_completed' | 'manual_upsell_won' | 'manual_upsell_lost' | 'manual';
 
 export interface Ticket {
   id: string;
@@ -24,6 +25,15 @@ export interface Ticket {
   typeLabel: string;
   typeColor: string;
 }
+
+export interface ClosedTicket extends Ticket {
+  closedAt: string;
+  closedReason: ClosedReason;
+}
+
+// Global in-memory store for closed tickets
+// Key: `${type}-${groupId}`, Value: ClosedTicket
+let closedTicketsStore = new Map<string, ClosedTicket>();
 
 function calculateExpectedUtilization(
   groupStartDate: string,
@@ -194,8 +204,48 @@ export async function generateTickets(): Promise<Ticket[]> {
       };
     }
 
+    // Check if the ticket should be auto-closed or was previously closed
     if (ticketToAdd) {
-      tickets.push(ticketToAdd);
+      const ticketKey = `${ticketToAdd.type}-${group.id}`;
+
+      // Check if this ticket was previously closed
+      if (closedTicketsStore.has(ticketKey)) {
+        // Don't regenerate closed tickets - skip this ticket
+        continue;
+      }
+
+      // Check auto-close conditions
+      let shouldAutoClose = false;
+      let autoCloseReason: ClosedReason | null = null;
+
+      if (ticketToAdd.type === 'activity') {
+        // ACTIVITY: auto-close if utilization difference dropped below 5%
+        if (utilizationDiff < 5) {
+          shouldAutoClose = true;
+          autoCloseReason = 'auto_utilization_improved';
+        }
+      } else if (ticketToAdd.type === 'onboarding') {
+        // ONBOARDING: auto-close if >30 days old OR utilization > 30% of expected
+        if (daysOld > 30 || currentUtilization > expectedUtilization * 0.3) {
+          shouldAutoClose = true;
+          autoCloseReason = 'auto_onboarding_completed';
+        }
+      }
+
+      // If should auto-close, store it as closed instead of adding to open tickets
+      if (shouldAutoClose && autoCloseReason) {
+        const closedTicket: ClosedTicket = {
+          ...ticketToAdd,
+          status: 'closed',
+          closedAt: now.toISOString().split('T')[0],
+          closedReason: autoCloseReason,
+        };
+        const ticketKey = `${ticketToAdd.type}-${group.id}`;
+        closedTicketsStore.set(ticketKey, closedTicket);
+      } else {
+        // Add as open ticket
+        tickets.push(ticketToAdd);
+      }
     }
   }
 
@@ -220,4 +270,39 @@ export async function getOpenTickets(): Promise<Ticket[]> {
 export async function getTicketsBySalesperson(salesPersonId: string): Promise<Ticket[]> {
   const tickets = await generateTickets();
   return tickets.filter(t => t.salesPersonId === salesPersonId && t.status === 'open');
+}
+
+export function closeTicketManually(ticket: Ticket, reason: 'upsell_won' | 'upsell_lost' | 'manual'): ClosedTicket {
+  const now = new Date();
+  const closedReason: ClosedReason = reason === 'upsell_won' ? 'manual_upsell_won' : reason === 'upsell_lost' ? 'manual_upsell_lost' : 'manual';
+
+  const closedTicket: ClosedTicket = {
+    ...ticket,
+    status: 'closed',
+    closedAt: now.toISOString().split('T')[0],
+    closedReason,
+  };
+
+  const ticketKey = `${ticket.type}-${ticket.groupId}`;
+  closedTicketsStore.set(ticketKey, closedTicket);
+
+  return closedTicket;
+}
+
+export function getClosedTickets(): ClosedTicket[] {
+  const closed: ClosedTicket[] = [];
+  closedTicketsStore.forEach((ticket) => {
+    closed.push(ticket);
+  });
+  return closed.sort((a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime());
+}
+
+export function getClosedTicketsByGroup(groupId: string): ClosedTicket[] {
+  const closed: ClosedTicket[] = [];
+  closedTicketsStore.forEach((ticket) => {
+    if (ticket.groupId === groupId) {
+      closed.push(ticket);
+    }
+  });
+  return closed.sort((a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime());
 }

@@ -3,9 +3,10 @@ import { Ticket } from '@/lib/tickets';
 
 interface TicketCardProps {
   ticket: Ticket;
+  activityCount?: number;
 }
 
-export default function TicketCard({ ticket }: TicketCardProps) {
+export default function TicketCard({ ticket, activityCount = 0 }: TicketCardProps) {
   // Determine risk badge styling
   let riskBadgeClass = 'bg-yellow-100 text-yellow-800';
   let riskLabel = 'Niskie ryzyko';
@@ -58,7 +59,7 @@ export default function TicketCard({ ticket }: TicketCardProps) {
 
         <p className="text-sm text-gray-700 mb-3">{ticket.description}</p>
 
-        <div className="grid grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-4 gap-3 text-sm">
           <div>
             <p className="text-gray-600">Wykorzystanie</p>
             <p className="font-semibold">{ticket.utilizationPercent}%</p>
@@ -70,6 +71,10 @@ export default function TicketCard({ ticket }: TicketCardProps) {
           <div>
             <p className="text-gray-600">Dni otwarte</p>
             <p className="font-semibold">{ticket.daysOpen}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Aktywności</p>
+            <p className="font-semibold">{activityCount}</p>
           </div>
         </div>
       </div>

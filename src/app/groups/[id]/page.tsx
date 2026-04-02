@@ -9,8 +9,11 @@ import WeeklyTempoChart from '@/components/WeeklyTempoChart';
 import EngagementStats from '@/components/EngagementStats';
 import KeyDatesTimeline from '@/components/KeyDatesTimeline';
 import RenewalProbabilityCard from '@/components/RenewalProbabilityCard';
+import ActivityForm from '@/components/ActivityForm';
+import ActivityList from '@/components/ActivityList';
 import { Group } from '@/lib/data';
 import { Ticket } from '@/lib/tickets';
+import { Activity } from '@/lib/activities';
 import { ForecastStats, calculateForecastStats } from '@/lib/forecast';
 
 export default function GroupDetailPage() {
@@ -20,7 +23,11 @@ export default function GroupDetailPage() {
   const [group, setGroup] = useState<Group | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [forecast, setForecast] = useState<ForecastStats | null>(null);
+  const [activitiesByTicket, setActivitiesByTicket] = useState<
+    Record<string, Activity[]>
+  >({});
   const [loading, setLoading] = useState(true);
+  const [closingTicket, setClosingTicket] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -69,8 +76,26 @@ export default function GroupDetailPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        const groupTickets = (data.tickets || []).filter((t: Ticket) => t.groupId === params.id);
+        const allTickets = [...(data.tickets || []), ...(data.closedTickets || [])];
+        const groupTickets = allTickets.filter((t: Ticket) => t.groupId === params.id);
         setTickets(groupTickets);
+
+        // Fetch activities for all tickets in this group
+        const ticketActivities: Record<string, Activity[]> = {};
+        for (const ticket of groupTickets) {
+          try {
+            const activitiesRes = await fetch(
+              `/api/activities?ticketId=${ticket.id}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            const activitiesData = await activitiesRes.json();
+            ticketActivities[ticket.id] = activitiesData.activities || [];
+          } catch (err) {
+            console.error('Błąd pobierania aktywności:', err);
+            ticketActivities[ticket.id] = [];
+          }
+        }
+        setActivitiesByTicket(ticketActivities);
       } catch (error) {
         console.error('Błąd pobierania ticketów:', error);
       }
@@ -108,6 +133,41 @@ export default function GroupDetailPage() {
   // Separate open and closed tickets
   const openTickets = tickets.filter(t => t.status === 'open');
   const closedTickets = tickets.filter(t => t.status === 'closed');
+
+  const handleCloseTicket = async (ticketId: string, reason: 'upsell_won' | 'upsell_lost' | 'manual') => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setClosingTicket(ticketId);
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/close`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (res.ok) {
+        // Remove the closed ticket from the open tickets list
+        setTickets((prev) => [
+          ...prev.filter((t) => t.id !== ticketId),
+          // In a real app, this would fetch the closed ticket data properly
+          {
+            ...prev.find((t) => t.id === ticketId),
+            status: 'closed',
+            closedAt: new Date().toISOString().split('T')[0],
+            closedReason: reason === 'upsell_won' ? 'manual_upsell_won' : reason === 'upsell_lost' ? 'manual_upsell_lost' : 'manual',
+          } as any,
+        ]);
+      }
+    } catch (error) {
+      console.error('Błąd zamykania ticketu:', error);
+    } finally {
+      setClosingTicket(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -303,33 +363,80 @@ export default function GroupDetailPage() {
                     }
 
                     return (
-                      <Link
-                        key={ticket.id}
-                        href={`/tickets?highlight=${ticket.id}`}
-                      >
-                        <div className={`${borderColor} bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors cursor-pointer`}>
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <p className="font-semibold text-gray-900">{ticket.description}</p>
-                              <p className="text-sm text-gray-600 mt-1">
-                                Otwarte od: {ticket.createdAt} ({ticket.daysOpen} dni)
-                              </p>
-                              <div className="flex gap-4 mt-2 text-xs text-gray-600">
-                                <span>Użycie: {ticket.utilizationPercent}%</span>
-                                <span>Oczekiwane: {ticket.expectedUtilizationPercent}%</span>
+                      <div key={ticket.id} className="space-y-3">
+                        <Link href={`/tickets?highlight=${ticket.id}`}>
+                          <div className={`${borderColor} bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors cursor-pointer`}>
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-semibold text-gray-900">{ticket.description}</p>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Otwarte od: {ticket.createdAt} ({ticket.daysOpen} dni)
+                                </p>
+                                <div className="flex gap-4 mt-2 text-xs text-gray-600">
+                                  <span>Użycie: {ticket.utilizationPercent}%</span>
+                                  <span>Oczekiwane: {ticket.expectedUtilizationPercent}%</span>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-2 ml-4">
+                                <span className={`${typeBadgeBg} ${typeBadgeText} px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
+                                  {ticket.typeLabel}
+                                </span>
+                                <span className={`${riskBadgeBg} ${riskBadgeText} px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
+                                  {riskBadgeLabel}
+                                </span>
                               </div>
                             </div>
-                            <div className="flex flex-col gap-2 ml-4">
-                              <span className={`${typeBadgeBg} ${typeBadgeText} px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
-                                {ticket.typeLabel}
-                              </span>
-                              <span className={`${riskBadgeBg} ${riskBadgeText} px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
-                                {riskBadgeLabel}
-                              </span>
-                            </div>
                           </div>
+                        </Link>
+
+                        {/* Close buttons for upsell tickets */}
+                        {ticket.type === 'upsell' && (
+                          <div className="flex gap-2 pl-4">
+                            <button
+                              onClick={() => handleCloseTicket(ticket.id, 'upsell_won')}
+                              disabled={closingTicket === ticket.id}
+                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+                            >
+                              {closingTicket === ticket.id ? 'Zamykanie...' : 'Upsell zrealizowany'}
+                            </button>
+                            <button
+                              onClick={() => handleCloseTicket(ticket.id, 'upsell_lost')}
+                              disabled={closingTicket === ticket.id}
+                              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+                            >
+                              {closingTicket === ticket.id ? 'Zamykanie...' : 'Klient odmówił'}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Activity Form and List for this ticket */}
+                        <div className="pl-4 space-y-3 border-l-2 border-gray-200">
+                          <ActivityForm
+                            ticketId={ticket.id}
+                            groupId={ticket.groupId}
+                            onActivityAdded={async () => {
+                              // Refresh activities for this ticket
+                              const token = localStorage.getItem('token');
+                              try {
+                                const res = await fetch(
+                                  `/api/activities?ticketId=${ticket.id}`,
+                                  { headers: { Authorization: `Bearer ${token}` } }
+                                );
+                                const data = await res.json();
+                                setActivitiesByTicket((prev) => ({
+                                  ...prev,
+                                  [ticket.id]: data.activities || [],
+                                }));
+                              } catch (error) {
+                                console.error('Błąd pobierania aktywności:', error);
+                              }
+                            }}
+                          />
+                          <ActivityList
+                            activities={activitiesByTicket[ticket.id] || []}
+                          />
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>
@@ -341,26 +448,41 @@ export default function GroupDetailPage() {
               <div>
                 <h4 className="font-semibold text-gray-600 mb-4">Historia zamkniętych ticketów ({closedTickets.length})</h4>
                 <div className="space-y-2">
-                  {closedTickets.map((ticket) => (
-                    <Link
-                      key={ticket.id}
-                      href={`/tickets?highlight=${ticket.id}`}
-                    >
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors cursor-pointer">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium text-gray-700">{ticket.description}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Zamknięty: {ticket.closedAt}
-                            </p>
+                  {closedTickets.map((ticket: any) => {
+                    // Get close reason label in Polish
+                    const reasonLabels: Record<string, string> = {
+                      'auto_utilization_improved': 'Zamknięty automatycznie — wykorzystanie wróciło do normy',
+                      'auto_onboarding_completed': 'Zamknięty automatycznie — onboarding zakończony',
+                      'manual_upsell_won': 'Zamknięty — upsell zrealizowany',
+                      'manual_upsell_lost': 'Zamknięty — klient odmówił',
+                      'manual': 'Zamknięty ręcznie',
+                    };
+                    const reasonLabel = reasonLabels[ticket.closedReason] || 'Zamknięty';
+
+                    return (
+                      <Link
+                        key={ticket.id}
+                        href={`/tickets?highlight=${ticket.id}`}
+                      >
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors cursor-pointer opacity-75">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-600 line-through">{ticket.description}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {reasonLabel}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Zamknięty: {ticket.closedAt}
+                              </p>
+                            </div>
+                            <span className="bg-gray-300 text-gray-700 px-2 py-1 rounded text-xs font-medium whitespace-nowrap ml-2">
+                              Zamknięty
+                            </span>
                           </div>
-                          <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-medium">
-                            Zamknięty
-                          </span>
                         </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateTickets } from '@/lib/tickets';
+import { generateTickets, getClosedTickets } from '@/lib/tickets';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,11 +20,14 @@ export async function GET(request: NextRequest) {
     }
 
     const allTickets = await generateTickets();
+    const allClosedTickets = getClosedTickets();
 
     // Filter tickets based on role
     let tickets = allTickets;
+    let closedTickets = allClosedTickets;
     if (userRole === 'salesperson' && fullName) {
       tickets = allTickets.filter((t) => t.salesPersonName === fullName);
+      closedTickets = allClosedTickets.filter((t) => t.salesPersonName === fullName);
     }
 
     // Sort by ticket type priority, then risk level, then days open
@@ -42,7 +45,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       tickets,
+      closedTickets,
       total: tickets.length,
+      closedTotal: closedTickets.length,
       summary: {
         open: tickets.filter((t) => t.status === 'open').length,
         onboarding: tickets.filter((t) => t.type === 'onboarding').length,

@@ -55,6 +55,12 @@ export default function Header() {
             >
               Tickety
             </Link>
+            <Link
+              href="/activity-dashboard"
+              className="hover:text-blue-100 transition-colors"
+            >
+              Aktywności
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">

@@ -6,17 +6,56 @@ import Header from '@/components/Header';
 import GroupCard from '@/components/GroupCard';
 import TicketCard from '@/components/TicketCard';
 import StatsCard from '@/components/StatsCard';
+import ScoringCard from '@/components/ScoringCard';
 import { Group } from '@/lib/data';
 import { Ticket } from '@/lib/tickets';
+import { Activity, ActivityStats } from '@/lib/activities';
+import { SalespersonScore } from '@/lib/scoring';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [activitiesByTicket, setActivitiesByTicket] = useState<
+    Record<string, Activity[]>
+  >({});
+  const [activityStats, setActivityStats] = useState<ActivityStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [riskFilter, setRiskFilter] = useState<string>('all');
+  const [scores, setScores] = useState<SalespersonScore[]>([]);
+  const [topPerformer, setTopPerformer] = useState<SalespersonScore | null>(null);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+
+  const handleDownloadReport = async () => {
+    setDownloadingReport(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/reports?type=full', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download report');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `raport-farmer-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Błąd pobierania raportu:', error);
+      alert('Nie udało się pobrać raportu');
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -33,20 +72,81 @@ export default function DashboardPage() {
     const fetchData = async () => {
       const token = localStorage.getItem('token');
       try {
-        const [groupsRes, ticketsRes] = await Promise.all([
+        const [groupsRes, ticketsRes, activitiesRes, scoringRes] = await Promise.all([
           fetch('/api/groups', {
             headers: { Authorization: `Bearer ${token}` },
           }),
           fetch('/api/tickets', {
             headers: { Authorization: `Bearer ${token}` },
           }),
+          fetch('/api/activities', {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch('/api/scoring', {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
         ]);
 
         const groupsData = await groupsRes.json();
         const ticketsData = await ticketsRes.json();
+        const activitiesData = await activitiesRes.json();
+        const scoringData = await scoringRes.json();
 
         setGroups(groupsData.groups || []);
-        setTickets(ticketsData.tickets || []);
+        const loadedTickets = ticketsData.tickets || [];
+        setTickets(loadedTickets);
+
+        // Set scoring data
+        const scoresData = scoringData.scores || [];
+        setScores(scoresData);
+        if (scoresData.length > 0) {
+          setTopPerformer(scoresData[0]);
+        }
+
+        // Process activities by ticket
+        const allActivities = activitiesData.activities || [];
+        const ticketActivities: Record<string, Activity[]> = {};
+        allActivities.forEach((activity: Activity) => {
+          if (!ticketActivities[activity.ticketId]) {
+            ticketActivities[activity.ticketId] = [];
+          }
+          ticketActivities[activity.ticketId].push(activity);
+        });
+        setActivitiesByTicket(ticketActivities);
+
+        // Calculate stats manually since we can't call getActivityStats on client
+        const stats: ActivityStats = {
+          totalActivities: allActivities.length,
+          byType: {
+            phone: allActivities.filter((a: Activity) => a.type === 'phone').length,
+            email: allActivities.filter((a: Activity) => a.type === 'email').length,
+            meeting: allActivities.filter((a: Activity) => a.type === 'meeting').length,
+          },
+          byPerson: {},
+          thisWeek: 0,
+          thisMonth: 0,
+        };
+
+        // Count by person
+        allActivities.forEach((activity: Activity) => {
+          if (!stats.byPerson[activity.createdBy]) {
+            stats.byPerson[activity.createdBy] = 0;
+          }
+          stats.byPerson[activity.createdBy]++;
+        });
+
+        // Count this week and month
+        const now = new Date();
+        allActivities.forEach((activity: Activity) => {
+          const actDate = new Date(activity.createdAt);
+          const diffMs = now.getTime() - actDate.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+          if (diffDays <= 7) stats.thisWeek++;
+          if (diffDays <= 30) stats.thisMonth++;
+        });
+
+        setActivityStats(stats);
       } catch (error) {
         console.error('Błąd pobierania danych:', error);
       } finally {
@@ -120,25 +220,67 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <StatsCard label="Grupy aktywne" value={groups.length} />
-          <StatsCard label="Średnie wykorzystanie" value={`${avgUtilization}%`} />
-          <StatsCard
-            label="Tickety razem"
-            value={tickets.length}
-            changeType={tickets.length > 0 ? 'negative' : 'positive'}
-          />
-          <StatsCard
-            label="Onboarding"
-            value={onboardingCount}
-            changeType={onboardingCount > 0 ? 'negative' : 'positive'}
-          />
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+              <StatsCard label="Grupy aktywne" value={groups.length} />
+              <StatsCard label="Średnie wykorzystanie" value={`${avgUtilization}%`} />
+              <StatsCard
+                label="Tickety razem"
+                value={tickets.length}
+                changeType={tickets.length > 0 ? 'negative' : 'positive'}
+              />
+              <StatsCard
+                label="Onboarding"
+                value={onboardingCount}
+                changeType={onboardingCount > 0 ? 'negative' : 'positive'}
+              />
+            </div>
+            {user.role === 'head_of_sales' && (
+              <button
+                onClick={handleDownloadReport}
+                disabled={downloadingReport}
+                className="ml-4 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors text-sm font-medium whitespace-nowrap"
+              >
+                {downloadingReport ? 'Generowanie...' : 'Eksport'}
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Scoring section */}
+        {user.role === 'head_of_sales' && topPerformer && (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Najlepszy wykonawca</h2>
+              <a href="/activity-dashboard" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                Zobacz wszystkie wyniki →
+              </a>
+            </div>
+            <div className="max-w-md">
+              <ScoringCard score={topPerformer} />
+            </div>
+          </div>
+        )}
+
+        {user.role === 'salesperson' && scores.length > 0 && (
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Twój wynik</h2>
+              <a href="/activity-dashboard" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                Pełny panel →
+              </a>
+            </div>
+            <div className="max-w-md">
+              <ScoringCard score={scores[0]} />
+            </div>
+          </div>
+        )}
+
         {/* Ticket types stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-red-50 rounded-lg border border-red-200 p-4 shadow-sm">
-            <p className="text-red-600 text-sm font-medium mb-1">Aktywność</p>
+            <p className="text-red-600 text-sm font-medium mb-1">Aktywność (ticket)</p>
             <p className="text-3xl font-bold text-red-700">{activityCount}</p>
           </div>
           <div className="bg-green-50 rounded-lg border border-green-200 p-4 shadow-sm">
@@ -149,6 +291,13 @@ export default function DashboardPage() {
             <p className="text-orange-600 text-sm font-medium mb-1">Wysokie ryzyko</p>
             <p className="text-3xl font-bold text-orange-700">{highRiskCount}</p>
           </div>
+          {activityStats && (
+            <div className="bg-blue-50 rounded-lg border border-blue-200 p-4 shadow-sm">
+              <p className="text-blue-600 text-sm font-medium mb-1">Aktywności</p>
+              <p className="text-3xl font-bold text-blue-700">{activityStats.thisWeek}</p>
+              <p className="text-xs text-blue-600 mt-1">w tym tygodniu</p>
+            </div>
+          )}
         </div>
 
         {/* Groups section */}
@@ -206,7 +355,11 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredTickets.map((ticket) => (
-                <TicketCard key={ticket.id} ticket={ticket} />
+                <TicketCard
+                  key={ticket.id}
+                  ticket={ticket}
+                  activityCount={(activitiesByTicket[ticket.id] || []).length}
+                />
               ))}
             </div>
           )}
