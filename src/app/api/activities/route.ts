@@ -3,6 +3,7 @@ import {
   addActivity,
   getActivitiesByTicketId,
   getActivitiesByGroupId,
+  getActivitiesBySalesperson,
   getActivityStats,
   getAllActivities,
 } from '@/lib/activities';
@@ -49,8 +50,13 @@ export async function GET(request: NextRequest) {
     } else if (groupId) {
       activities = getActivitiesByGroupId(groupId);
     } else {
-      // Return all activities
+      // Return all activities for admin, only own for salesperson
       activities = getAllActivities();
+    }
+
+    // Filter by salesperson role - salesperson sees only their own activities
+    if (userRole === 'salesperson' && salesPersonName) {
+      activities = activities.filter(a => a.salesPersonName === salesPersonName);
     }
 
     // Sort newest first
