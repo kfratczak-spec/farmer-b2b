@@ -1,34 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const SAMPLE_SALESPEOPLE = [
-  'Anna Nas',
-  'Róża Donat',
-  'Wanda Lizm',
-  'Piotr Pan',
-  'Antoni Ogórkiewicz',
-];
+interface LoginUser {
+  fullName: string;
+  role: string;
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [users, setUsers] = useState<LoginUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/auth')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.users) {
+          setUsers(data.users);
+        }
+      })
+      .catch(() => setError('Nie udało się pobrać listy użytkowników'))
+      .finally(() => setLoadingUsers(false));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    if (!selectedUser) {
+      setError('Wybierz użytkownika');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, password }),
+        body: JSON.stringify({ fullName: selectedUser, password }),
       });
 
       const data = await response.json();
@@ -39,10 +55,8 @@ export default function LoginPage() {
         return;
       }
 
-      // Store user and token
       localStorage.setItem('user', JSON.stringify(data.user));
       localStorage.setItem('token', data.token);
-
       router.push('/dashboard');
     } catch (err) {
       setError('Błąd połączenia');
@@ -65,30 +79,27 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Imię
+              Użytkownik
             </label>
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="np. Anna"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nazwisko
-            </label>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="np. Nas"
-              required
-            />
+            {loadingUsers ? (
+              <div className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-400">
+                Ładowanie...
+              </div>
+            ) : (
+              <select
+                value={selectedUser}
+                onChange={(e) => setSelectedUser(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                required
+              >
+                <option value="">Wybierz użytkownika...</option>
+                {users.map((user) => (
+                  <option key={user.fullName} value={user.fullName}>
+                    {user.fullName} {user.role === 'head_of_sales' ? '(Admin)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -107,20 +118,15 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || loadingUsers}
             className="w-full btn-primary disabled:opacity-50"
           >
             {loading ? 'Logowanie...' : 'Zaloguj się'}
           </button>
         </form>
 
-        <div className="mt-8 p-4 bg-blue-50 rounded-lg text-sm text-gray-700">
-          <p className="font-semibold mb-2">Przykładowe konta:</p>
-          {SAMPLE_SALESPEOPLE.map((name) => (
-            <p key={name}>{name}</p>
-          ))}
-          <p className="mt-2">Szef sprzedaży: Jan Administrator</p>
-          <p className="mt-2 text-gray-600">Hasło: tutlo</p>
+        <div className="mt-6 p-3 bg-blue-50 rounded-lg text-sm text-gray-600 text-center">
+          Hasło otrzymasz od administratora systemu
         </div>
       </div>
     </div>

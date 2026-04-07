@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface User {
-  firstName: string;
-  lastName: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
   role: string;
+  isAdmin?: boolean;
 }
 
 export default function Header() {
@@ -17,7 +19,12 @@ export default function Header() {
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (stored) {
-      setUser(JSON.parse(stored));
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
     }
   }, []);
 
@@ -28,6 +35,9 @@ export default function Header() {
   };
 
   if (!user) return null;
+
+  const displayName = user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+  const isAdmin = user.isAdmin || user.role === 'head_of_sales';
 
   return (
     <header className="bg-blue-600 text-white shadow-lg">
@@ -61,15 +71,21 @@ export default function Header() {
             >
               Aktywności
             </Link>
+            {isAdmin && (
+              <Link
+                href="/admin/users"
+                className="hover:text-blue-100 transition-colors border-l border-blue-400 pl-6"
+              >
+                Admin
+              </Link>
+            )}
           </nav>
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="font-medium">
-              {user.firstName} {user.lastName}
-            </p>
+            <p className="font-medium">{displayName}</p>
             <p className="text-sm text-blue-100">
-              {user.role === 'head_of_sales' ? 'Szef sprzedaży' : 'Sprzedawca'}
+              {isAdmin ? 'Administrator' : 'Handlowiec'}
             </p>
           </div>
           <button

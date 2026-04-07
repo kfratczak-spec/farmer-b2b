@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSalespeopleFromData } from '@/lib/data';
-
-const HEAD_OF_SALES = {
-  firstName: 'Jan',
-  lastName: 'Administrator',
-  role: 'head_of_sales',
-  id: 'admin',
-};
+import { getActiveUsers, updateLastLogin } from '@/lib/users';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { firstName, lastName, password } = body;
+    const { fullName, password } = body;
 
     // Password is always "tutlo"
     if (password !== 'tutlo') {
@@ -21,49 +14,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if it's the head of sales
-    if (firstName === HEAD_OF_SALES.firstName && lastName === HEAD_OF_SALES.lastName) {
-      const token = Buffer.from(
-        JSON.stringify({ id: HEAD_OF_SALES.id, role: HEAD_OF_SALES.role })
-      ).toString('base64');
+    // Find active user by fullName
+    const users = await getActiveUsers();
+    const user = users.find(u => u.fullName === fullName);
 
-      return NextResponse.json({
-        success: true,
-        user: HEAD_OF_SALES,
-        token,
-      });
-    }
-
-    // Get real salespeople from data
-    const salespeople = getSalespeopleFromData();
-
-    // Check if it's a salesperson
-    const salesperson = salespeople.find(
-      (sp) => sp.firstName === firstName && sp.lastName === lastName
-    );
-
-    if (!salesperson) {
+    if (!user) {
       return NextResponse.json(
-        { error: 'Użytkownik nie znaleziony' },
+        { error: 'Użytkownik nie znaleziony lub nieaktywny' },
         { status: 401 }
       );
     }
 
-    const fullName = `${salesperson.firstName} ${salesperson.lastName}`;
+    // Map role for backward compatibility
+    const tokenRole = user.role === 'admin' ? 'head_of_sales' : 'salesperson';
+
     const token = Buffer.from(
-      JSON.stringify({ id: salesperson.id, role: salesperson.role, fullName })
+      JSON.stringify({
+        id: user.id,
+        role: tokenRole,
+        fullName: user.fullName,
+        email: user.email,
+        isAdmin: user.role === 'admin',
+      })
     ).toString('base64');
+
+    // Update last login
+    await updateLastLogin(user.fullName);
 
     return NextResponse.json({
       success: true,
       user: {
-        id: salesperson.id,
-        firstName: salesperson.firstName,
-        lastName: salesperson.lastName,
-        fullName,
-        role: salesperson.role,
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: tokenRole,
+        isAdmin: user.role === 'admin',
       },
       token,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Błąd serwera' },
+      { status: 500 }
+    );
+  }
+}
+
+// GET: return list of active users for login page dropdown
+export async function GET() {
+  try {
+    const users = await getActiveUsers();
+    return NextResponse.json({
+      success: true,
+      users: users.map(u => ({
+        fullName: u.fullName,
+        role: u.role === 'admin' ? 'head_of_sales' : 'salesperson',
+      })),
     });
   } catch (error) {
     return NextResponse.json(
