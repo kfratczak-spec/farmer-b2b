@@ -1,6 +1,6 @@
 # Farmer B2B - Kontekst Projektu
 
-> Ostatnia aktualizacja: 2026-04-02 | Wersja: v2026-04-02-review
+> Ostatnia aktualizacja: 2026-04-07 | Wersja: v2026-04-07
 
 ## 1. Czym jest Farmer B2B?
 
@@ -15,6 +15,7 @@ Wewnętrzna aplikacja webowa dla zespołu sprzedaży B2B w firmie **Tutlo** (pla
 - **Wykresy:** Recharts 3.8.1
 - **Raporty Excel:** xlsx 0.18.5
 - **Hosting:** Vercel (auto-deploy z GitHub push na `main`)
+- **Storage:** Vercel KV (Upstash Redis) - dane użytkowników, prefix `KV_`
 - **Repozytorium:** github.com/kfratczak-spec/farmer-b2b
 - **URL produkcyjny:** farmer-b2b.vercel.app
 - **Vercel team:** kfratczak-2288s-projects (team_T9GGBKoBpPQegGHHDGAyF2WD)
@@ -23,15 +24,20 @@ Wewnętrzna aplikacja webowa dla zespołu sprzedaży B2B w firmie **Tutlo** (pla
 ## 3. Źródło danych
 
 - Docelowo: **Google Sheets** (publikowany jako CSV) - aktualnie zwraca 401, do naprawy
-- Tymczasowo: **dane embedded** w `src/lib/data.ts` jako fallback
-- **Brak bazy danych** - wszystkie dane runtime (aktywności, historia ticketów, scoring) trzymane **in-memory** w globalnych Map. Resetują się przy każdym redeploy na Vercel. To jest znane ograniczenie, do rozwiązania w przyszłości (Vercel Postgres lub Supabase).
+- Tymczasowo: **dane embedded** w `src/lib/data.ts` jako fallback (7316 sesji, 47 grup)
+- **Vercel KV** dla danych użytkowników (trwały zapis, nie resetuje się przy redeploy)
+- **In-memory** dla danych runtime (aktywności, historia ticketów, scoring) - resetują się przy redeploy. Do rozwiązania w przyszłości (Vercel Postgres lub Supabase).
 
-## 4. Autentykacja
+## 4. Autentykacja i zarządzanie użytkownikami
 
 - Token Base64 w header `Authorization: Bearer <token>`
-- Token zawiera: `name`, `role`, `fullName`
+- Token zawiera: `name`, `role`, `fullName`, `isAdmin`
 - Bez podpisu kryptograficznego (tymczasowe rozwiązanie)
-- Dwie role: `head_of_sales` (widzi wszystko) i `salesperson` (widzi tylko swoje grupy)
+- Dwie role: `admin` (mapowany na `head_of_sales` dla backward compat) i `salesperson`
+- Logowanie przez dropdown z listą aktywnych użytkowników (GET `/api/auth`)
+- **Panel Admin** (`/admin/users`): zarządzanie użytkownikami (dodawanie, zmiana roli, dezaktywacja)
+- Dane użytkowników w Vercel KV (`src/lib/users.ts`) z in-memory fallback
+- 15 domyślnych użytkowników seedowanych przy pierwszym uruchomieniu
 
 ## 5. Struktura plików
 
@@ -39,15 +45,18 @@ Wewnętrzna aplikacja webowa dla zespołu sprzedaży B2B w firmie **Tutlo** (pla
 src/
 ├── app/
 │   ├── page.tsx                     # Strona główna (redirect do login)
-│   ├── login/page.tsx               # Logowanie
+│   ├── login/page.tsx               # Logowanie (dropdown użytkowników)
 │   ├── dashboard/page.tsx           # Dashboard główny
+│   ├── admin/
+│   │   └── users/page.tsx           # Panel administracyjny (zarządzanie użytkownikami)
 │   ├── activity-dashboard/page.tsx  # Dashboard aktywności i scoringu
 │   ├── tickets/page.tsx             # Lista ticketów (otwarte/zamknięte)
 │   ├── groups/
 │   │   ├── page.tsx                 # Lista grup
 │   │   └── [id]/page.tsx            # Szczegóły grupy (forecast, tickety, aktywności)
 │   └── api/
-│       ├── auth/route.ts            # Logowanie
+│       ├── auth/route.ts            # Logowanie (GET: lista użytkowników, POST: login)
+│       ├── admin/users/route.ts     # API zarządzania użytkownikami (admin only)
 │       ├── groups/route.ts          # Lista grup
 │       ├── groups/[id]/route.ts     # Szczegóły grupy
 │       ├── tickets/route.ts         # Tickety + historia
@@ -67,7 +76,8 @@ src/
 │   ├── ScoringCard.tsx              # Karta scoringu handlowca
 │   └── ScoringRanking.tsx           # Ranking zespołu
 └── lib/
-    ├── data.ts                      # Interfejsy (Group, DailyUsage, Salesperson), fetchGroups()
+    ├── data.ts                      # Interfejsy (Group, DailyUsage, Salesperson), fetchGroups(), embedded CSV
+    ├── users.ts                     # Zarządzanie użytkownikami (Vercel KV + in-memory fallback)
     ├── tickets.ts                   # System ticketów z cyklami życia
     ├── forecast.ts                  # Prognoza wykorzystania + prawdopodobieństwo wznowienia
     ├── activities.ts                # Logowanie aktywności handlowców
@@ -142,21 +152,28 @@ Dwa tryby:
 | v2026-03-30 | 2026-03-30 | Bazowa wersja: dashboard, grupy, tickety, forecast, wykres |
 | v2026-04-02 | 2026-04-02 | System aktywności: logowanie, auto-zamykanie, scoring, eksport Excel |
 | v2026-04-02-review | 2026-04-02 | Code review fixes: mediana, typy, division by zero, wydajność chart |
+| v2026-04-07 | 2026-04-07 | Aktualizacja danych talksession (7316 sesji), panel admin użytkowników, Vercel KV, dropdown login, workflow branchowania |
 
 ## 12. Znane ograniczenia i plany
 
 ### Do naprawy
 - [ ] Google Sheets CSV zwraca 401 - dane embedded jako fallback
-- [ ] Dane in-memory resetują się przy redeploy (brak bazy danych)
+- [ ] Dane runtime (aktywności, tickety, scoring) in-memory resetują się przy redeploy
 - [ ] Token Base64 bez podpisu kryptograficznego
 - [ ] Brak walidacji uprawnień przy zamykaniu ticketów (każdy zalogowany może zamknąć dowolny)
 
+### Zrealizowane
+- [x] System branching (feature branches + preview URL na Vercel) - zrealizowane 2026-04-07
+- [x] Vercel KV dla danych użytkowników (trwały zapis) - zrealizowane 2026-04-07
+- [x] Panel administracyjny z zarządzaniem użytkownikami - zrealizowane 2026-04-07
+- [x] Dropdown login zamiast ręcznego wpisywania imienia - zrealizowane 2026-04-07
+
 ### Planowane
-- [ ] Baza danych (Vercel Postgres lub Supabase) zamiast in-memory
+- [ ] Baza danych (Vercel Postgres lub Supabase) dla danych runtime (aktywności, tickety, scoring)
 - [ ] Integracja z HubSpot do weryfikacji upselli
 - [ ] Realne śledzenie aktywności (nie tylko manualne logowanie)
-- [ ] System branching (feature branches zamiast pushowania na main)
 - [ ] Internacjonalizacja (polskie stringi w jednym pliku i18n)
+- [ ] Migracja z @vercel/kv na @upstash/redis (rekomendacja Vercel)
 
 ## 13. Wskazówki dla Claude na nowej sesji
 
