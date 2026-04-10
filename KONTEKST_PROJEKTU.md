@@ -1,6 +1,6 @@
 # Farmer B2B - Kontekst Projektu
 
-> Ostatnia aktualizacja: 2026-04-07 | Wersja: v2026-04-07
+> Ostatnia aktualizacja: 2026-04-10 | Wersja: v1.3.0
 
 ## 1. Czym jest Farmer B2B?
 
@@ -90,7 +90,7 @@ src/
 ### Typy ticketów
 - **Activity** (czerwony/pomarańczowy/żółty) - grupa >30 dni, wykorzystanie za niskie
 - **Onboarding** (niebieski) - grupa <=30 dni, wykorzystanie <30% oczekiwanego
-- **Upsell** (zielony/fioletowy) - dobre wykorzystanie, zbliża się koniec okresu
+- **Upsell** (zielony/fioletowy) - dobre wykorzystanie (>65%), grupa >=90 dni od startu lub >70% puli zużyte
 
 ### Cykl życia
 Tickety mogą być wielokrotnie otwierane i zamykane. Każdy cykl open→close jest zapisywany w tablicy `cycles`. Historia przechowywana w `ticketHistoryStore` (Map).
@@ -103,17 +103,30 @@ Tickety mogą być wielokrotnie otwierane i zamykane. Każdy cykl open→close j
 ### Dynamiczne progi
 Gdy jest >=10 aktywnych grup, progi liczone na podstawie mediany i odchylenia standardowego wykorzystania wszystkich grup. Przy <10 grupach - progi stałe.
 
-### Cooldown
-- **Auto-close:** 14 dni cooldownu przed ponownym otwarciem
-- **Manual close:** brak cooldownu
-- **Panic clause:** >15pp za oczekiwanym wykorzystaniem przerywa cooldown
+### Upsell risk levels (dwuwymiarowy model)
+- **Critical:** >85% puli zużyte LUB (>65% puli i <60 dni do końca)
+- **High risk:** >75% puli zużyte LUB (>65% puli i <120 dni do końca)
+- **Low risk:** pozostałe
 
-### Zamykanie
-- **Automatyczne:** gdy utilization się poprawi (activity) lub po 30 dniach (onboarding)
-- **Manualne:** handlowiec zamyka z powodem (upsell zrealizowany/klient odmówił/ręczne)
+### Zamykanie ticketów
+- **Activity:** tylko automatyczne — gdy różnica wykorzystania spadnie poniżej progu zamknięcia (3pp)
+- **Onboarding:** tylko automatyczne — po 30 dniach lub gdy wykorzystanie >30% oczekiwanego
+- **Upsell:** tylko ręczne — handlowiec zamyka z powodem (upsell_won/upsell_lost/manual)
+
+### Cooldown po zamknięciu
+- **Activity/Onboarding:** 14 dni cooldownu (zamykane automatycznie)
+- **Upsell:** brak cooldownu (zamykane ręcznie)
+- **Panic clause:** >15pp za oczekiwanym wykorzystaniem przerywa cooldown (activity)
 
 ## 7. Prawdopodobieństwo wznowienia umowy
 
+### Prognoza wykorzystania
+- **Dynamiczny lookback:** `min(90, max(14, round(totalDays * 0.1)))` — proporcjonalny do długości grupy
+- Krótkie grupy (~60 dni): 14 dni lookback
+- Średnie grupy (~365 dni): 37 dni lookback
+- Długie grupy (3+ lata): 90 dni lookback (max)
+
+### Prawdopodobieństwo wznowienia
 Wzór: `40% wykorzystanie + 30% trend + 15% czas + 15% prognoza - kara za tickety`
 
 - **Wykorzystanie (0-40 pkt):** stosunek aktualnego do oczekiwanego
@@ -152,7 +165,8 @@ Dwa tryby:
 | v2026-03-30 | 2026-03-30 | Bazowa wersja: dashboard, grupy, tickety, forecast, wykres |
 | v2026-04-02 | 2026-04-02 | System aktywności: logowanie, auto-zamykanie, scoring, eksport Excel |
 | v2026-04-02-review | 2026-04-02 | Code review fixes: mediana, typy, division by zero, wydajność chart |
-| v2026-04-07 | 2026-04-07 | Aktualizacja danych talksession (7316 sesji), panel admin użytkowników, Vercel KV, dropdown login, workflow branchowania |
+| v2026-04-07 / v1.2.0 | 2026-04-07 | Aktualizacja danych talksession (7316 sesji), panel admin użytkowników, Vercel KV, dropdown login, workflow branchowania |
+| v1.3.0 | 2026-04-10 | Upsell: trigger po 3 mies. od startu, dwuwymiarowe risk levels. Prognoza: dynamiczny lookback. Zamykanie ticketów: activity/onboarding tylko auto, upsell tylko manual |
 
 ## 12. Znane ograniczenia i plany
 
@@ -160,7 +174,7 @@ Dwa tryby:
 - [ ] Google Sheets CSV zwraca 401 - dane embedded jako fallback
 - [ ] Dane runtime (aktywności, tickety, scoring) in-memory resetują się przy redeploy
 - [ ] Token Base64 bez podpisu kryptograficznego
-- [ ] Brak walidacji uprawnień przy zamykaniu ticketów (każdy zalogowany może zamknąć dowolny)
+- [x] ~~Brak walidacji uprawnień przy zamykaniu ticketów~~ — zamykanie ograniczone do upsell (v1.3.0)
 
 ### Zrealizowane
 - [x] System branching (feature branches + preview URL na Vercel) - zrealizowane 2026-04-07
