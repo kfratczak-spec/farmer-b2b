@@ -49,6 +49,14 @@ export async function POST(
       );
     }
 
+    // Only upsell tickets can be closed manually
+    if (ticket.type !== 'upsell') {
+      return NextResponse.json(
+        { error: `Ręczne zamykanie jest dostępne tylko dla ticketów upsell. Typ ticketu: ${ticket.type}` },
+        { status: 400 }
+      );
+    }
+
     // Close the ticket and persist to in-memory store
     const closedTicket = closeTicketManually(ticket, reason);
 
