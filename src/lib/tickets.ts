@@ -150,17 +150,15 @@ function calculateDynamicThresholds(groups: GroupInput[]): {
   };
 }
 
-function isCooldownActive(ticket: Ticket, panicThreshold: number = 15): boolean {
+function isCooldownActive(ticket: Ticket): boolean {
   if (ticket.status !== 'closed' || !ticket.closedAt) return false;
 
-  // No cooldown for manual closes
-  if (ticket.closedReason === 'manual_upsell_won' ||
-      ticket.closedReason === 'manual_upsell_lost' ||
-      ticket.closedReason === 'manual') {
+  // Upsell tickets: closed only manually, no cooldown (they don't auto-reopen)
+  if (ticket.type === 'upsell') {
     return false;
   }
 
-  // Auto-close: 14 day cooldown
+  // Activity and onboarding tickets: closed only automatically, always 14 day cooldown
   const closedDate = new Date(ticket.closedAt);
   const now = new Date();
   const daysSinceClosed = Math.floor((now.getTime() - closedDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -279,24 +277,26 @@ export async function generateTickets(): Promise<Ticket[]> {
     }
 
     // UPSELL TICKETS - Lower priority (only if no other ticket)
+    // Trigger: after 3 months from start AND good utilization (>65% or >70% of pool used)
     if (
       !ticketToAdd &&
       currentUtilization > 0.65 &&
-      (daysRemaining < 90 || percentUsed > 70)
+      (daysOld >= 90 || percentUsed > 70)
     ) {
-      // Upsell ticket: good utilization with limited time left
+      // Upsell ticket: good utilization, group mature enough for upsell conversation
       let riskLevel: RiskLevel = 'low_risk';
       let description = '';
 
-      if (daysRemaining < 30) {
+      // Two-dimensional risk: utilization % AND time remaining
+      if (percentUsed > 85 || (percentUsed > 65 && daysRemaining < 60)) {
         riskLevel = 'critical';
-        description = `Upsell: Gorący lead - grupa bardzo aktywna (${(currentUtilization * 100).toFixed(0)}%) z mniej niż 30 dniami pozostałymi`;
-      } else if (daysRemaining < 60) {
+        description = `Upsell: Gorący lead - wykorzystanie ${percentUsed.toFixed(0)}% puli, ${daysRemaining} dni pozostało`;
+      } else if (percentUsed > 75 || (percentUsed > 65 && daysRemaining < 120)) {
         riskLevel = 'high_risk';
-        description = `Upsell: Ciepły lead - grupa aktywna (${(currentUtilization * 100).toFixed(0)}%) z 30-60 dniami pozostałymi`;
+        description = `Upsell: Ciepły lead - wykorzystanie ${percentUsed.toFixed(0)}% puli, ${daysRemaining} dni pozostało`;
       } else {
         riskLevel = 'low_risk';
-        description = `Upsell: Wczesny sygnał - grupa dobrze się rozwija (${(currentUtilization * 100).toFixed(0)}%), okazja na ekspansję`;
+        description = `Upsell: Wczesny sygnał - grupa dobrze się rozwija (${percentUsed.toFixed(0)}% puli), okazja na ekspansję`;
       }
 
       ticketToAdd = {
@@ -472,6 +472,11 @@ export async function getTicketsBySalesperson(salesPersonId: string): Promise<Ti
 }
 
 export function closeTicketManually(ticket: Ticket, reason: 'upsell_won' | 'upsell_lost' | 'manual'): ClosedTicket {
+  // Only upsell tickets can be closed manually
+  if (ticket.type !== 'upsell') {
+    throw new Error(`Ręczne zamykanie jest dostępne tylko dla ticketów upsell. Typ ticketu: ${ticket.type}`);
+  }
+
   const now = new Date();
   const closedReason: ClosedReason = reason === 'upsell_won' ? 'manual_upsell_won' : reason === 'upsell_lost' ? 'manual_upsell_lost' : 'manual';
 

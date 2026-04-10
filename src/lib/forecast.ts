@@ -37,13 +37,20 @@ export function calculateForecastStats(group: Group): ForecastStats {
   const targetUtilization = 0.75;
   const expectedUtilization = Math.min(elapsedRatio * targetUtilization, targetUtilization);
 
-  // Calculate recent daily usage rate (last 14 days)
-  const fourteenDaysAgo = new Date(now);
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  // Dynamic lookback period: proportional to group duration
+  // Formula: min(90, max(14, round(totalDays * 0.1)))
+  // Short groups (e.g. 60 days) → 14 days lookback
+  // Medium groups (e.g. 365 days) → 37 days lookback
+  // Long groups (e.g. 3 years) → 90 days lookback (capped)
+  const totalDaysGroup = Math.ceil(totalMs / (1000 * 60 * 60 * 24));
+  const lookbackDays = Math.min(90, Math.max(14, Math.round(totalDaysGroup * 0.1)));
+
+  const lookbackDate = new Date(now);
+  lookbackDate.setDate(lookbackDate.getDate() - lookbackDays);
 
   const recentUsage = group.dailyUsage.filter(du => {
     const duDate = new Date(du.date);
-    return duDate >= fourteenDaysAgo && duDate <= now;
+    return duDate >= lookbackDate && duDate <= now;
   });
 
   const dailyUsageRate =
